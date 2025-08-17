@@ -1,47 +1,52 @@
-// config/database.js - Updated for Neon integration
+// config/database.js - Fixed for Vercel serverless deployment
 const { Pool } = require('pg');
 
-// Neon Postgres optimized configuration
+// Serverless-optimized configuration
 const dbConfig = {
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Required for Neon
-  },
-  // Optimized for Neon's serverless environment
-  max: 10, // Reduced pool size for serverless
-  idleTimeoutMillis: 10000, // Shorter idle timeout
-  connectionTimeoutMillis: 5000, // Reasonable connection timeout
-  keepAlive: true,
-  keepAliveInitialDelayMillis: 0
+  ssl: process.env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: false // Required for most hosted PostgreSQL services
+  } : false,
+  // Optimized for serverless - smaller pool, shorter timeouts
+  max: 3, // Reduced pool size for serverless
+  idleTimeoutMillis: 5000, // Shorter idle timeout
+  connectionTimeoutMillis: 10000, // Connection timeout
+  keepAlive: false, // Disable keepalive for serverless
+  statement_timeout: 10000, // 10 second statement timeout
+  query_timeout: 10000, // 10 second query timeout
 };
 
 // Create connection pool
-const pool = new Pool(dbConfig);
+let pool;
 
-// Enhanced error handling for Neon
-pool.on('connect', (client) => {
-  console.log('✅ Connected to Neon PostgreSQL database');
-});
-
-pool.on('error', (err, client) => {
-  console.error('❌ Neon database connection error:', err.message);
-  // Don't exit process in serverless environment
-  if (process.env.NODE_ENV !== 'production') {
-    console.error('Full error:', err);
+function getPool() {
+  if (!pool) {
+    pool = new Pool(dbConfig);
+    
+    // Handle pool errors without crashing
+    pool.on('error', (err) => {
+      console.error('Database pool error:', err.message);
+    });
+    
+    pool.on('connect', () => {
+      console.log('✅ Connected to database');
+    });
   }
-});
+  return pool;
+}
 
-// Activity logging function with better error handling
+// Activity logging function with better error handling for serverless
 async function logActivity(sessionId, action, details = null, userAgent = null, ipAddress = null) {
   let client;
   try {
+    const pool = getPool();
     client = await pool.connect();
     await client.query(
       `INSERT INTO activity_logs (session_id, action, details, user_agent, ip_address, timestamp) 
        VALUES ($1, $2, $3, $4, $5, NOW())`,
       [sessionId, action, details, userAgent, ipAddress]
     );
-    console.log(`📝 Activity logged: ${action} for session ${sessionId}`);
+    console.log(`📝 Activity logged: ${action} for session ${sessionId?.substring(0, 8)}...`);
   } catch (err) {
     console.error('Error logging activity:', err.message);
     // Don't throw error to avoid breaking the main flow
@@ -50,10 +55,11 @@ async function logActivity(sessionId, action, details = null, userAgent = null, 
   }
 }
 
-// Test database connection function
+// Test database connection function (async)
 async function testConnection() {
   let client;
   try {
+    const pool = getPool();
     client = await pool.connect();
     const result = await client.query('SELECT NOW(), version()');
     console.log('🚀 Database test successful:', {
@@ -69,34 +75,94 @@ async function testConnection() {
   }
 }
 
-// Initialize database tables with Neon-optimized queries
+// Initialize database tables (only run when explicitly called)
 async function initializeTables() {
   let client;
   try {
+    const pool = getPool();
     client = await pool.connect();
     
     console.log('🔧 Checking database tables...');
 
-    // Check if our main tables exist
-    const tableCheck = await client.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name IN ('users', 'activity_logs', 'edi_documents', 'user_sessions', 'system_config')
+    // Create activity_logs table if it doesn't exist
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(255) NOT NULL,
+        action VARCHAR(100) NOT NULL,
+        details TEXT,
+        timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        user_agent TEXT,
+        ip_address INET
+      )
     `);
 
-    console.log(`✅ Found ${tableCheck.rows.length} tables in database`);
-    
-    if (tableCheck.rows.length < 5) {
-      console.log('⚠️  Some tables missing. Please run the SQL schema in Neon console.');
-    }
+    // Create indexes if they don't exist
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_activity_logs_session_id ON activity_logs(session_id);
+      CREATE INDEX IF NOT EXISTS idx_activity_logs_timestamp ON activity_logs(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action);
+    `);
 
-    // Test a simple query
-    await client.query('SELECT 1');
-    console.log('✅ Database connection and tables verified');
+    // Create session table for express-session
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "session" (
+        "sid" VARCHAR NOT NULL COLLATE "default",
+        "sess" JSON NOT NULL,
+        "expire" TIMESTAMP(6) NOT NULL
+      )
+    `);
+
+    await client.query(`
+      ALTER TABLE "session" DROP CONSTRAINT IF EXISTS "session_pkey";
+      ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE;
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+    `);
+
+    // Create edi_orders table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS edi_orders (
+        id SERIAL PRIMARY KEY,
+        order_number VARCHAR(255) UNIQUE NOT NULL,
+        product_code VARCHAR(255),
+        product_name VARCHAR(255),
+        order_quantity VARCHAR(100),
+        delivery_date VARCHAR(100),
+        uploaded_by INTEGER,
+        uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_edi_orders_order_number ON edi_orders(order_number);
+      CREATE INDEX IF NOT EXISTS idx_edi_orders_uploaded_at ON edi_orders(uploaded_at);
+    `);
+
+    // Create users table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        password_hash VARCHAR(255),
+        email VARCHAR(100),
+        role VARCHAR(20) DEFAULT 'user',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        last_login TIMESTAMP WITH TIME ZONE,
+        is_active BOOLEAN DEFAULT TRUE
+      )
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    `);
+
+    console.log('✅ Database tables verified/created');
     
   } catch (err) {
-    console.error('❌ Error checking database tables:', err.message);
+    console.error('❌ Error initializing database tables:', err.message);
     throw err;
   } finally {
     if (client) client.release();
@@ -105,27 +171,20 @@ async function initializeTables() {
 
 // Graceful cleanup function
 async function closePool() {
-  try {
-    await pool.end();
-    console.log('🔒 Database pool closed gracefully');
-  } catch (err) {
-    console.error('Error closing database pool:', err.message);
+  if (pool) {
+    try {
+      await pool.end();
+      console.log('🔒 Database pool closed gracefully');
+    } catch (err) {
+      console.error('Error closing database pool:', err.message);
+    }
   }
 }
 
-// Initialize on startup (only in non-test environments)
-if (process.env.NODE_ENV !== 'test') {
-  testConnection().then(connected => {
-    if (connected) {
-      initializeTables().catch(err => {
-        console.error('Failed to initialize database tables:', err.message);
-      });
-    }
-  });
-}
-
 module.exports = {
-  pool,
+  get pool() {
+    return getPool();
+  },
   logActivity,
   initializeTables,
   testConnection,
