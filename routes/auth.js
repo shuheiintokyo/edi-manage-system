@@ -1,4 +1,4 @@
-// routes/auth.js - Updated with database integration
+// routes/auth.js - Final version with database integration
 const express = require('express');
 const path = require('path');
 const bcrypt = require('bcrypt');
@@ -19,27 +19,31 @@ router.post('/login', async (req, res) => {
   const userAgent = req.get('User-Agent') || 'unknown';
   
   try {
-    // Check against database users first
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE username = $1 AND is_active = true',
-      [username]
-    );
-    
+    // Try database authentication first
     let isValidUser = false;
     let userId = null;
     
-    if (userResult.rows.length > 0) {
-      const user = userResult.rows[0];
-      // Check if password matches (assuming bcrypt hashed passwords)
-      if (user.password_hash) {
-        isValidUser = await bcrypt.compare(password, user.password_hash);
-      } else {
-        // Fallback to simple comparison for admin/1234
-        isValidUser = validateCredentials(username, password);
+    try {
+      const userResult = await pool.query(
+        'SELECT * FROM users WHERE username = $1 AND is_active = true',
+        [username]
+      );
+      
+      if (userResult.rows.length > 0) {
+        const user = userResult.rows[0];
+        if (user.password_hash) {
+          isValidUser = await bcrypt.compare(password, user.password_hash);
+        } else {
+          isValidUser = validateCredentials(username, password);
+        }
+        userId = user.id;
       }
-      userId = user.id;
-    } else {
-      // Fallback to environment-based validation
+    } catch (dbError) {
+      console.log('Database auth failed, using fallback:', dbError.message);
+    }
+    
+    // Fallback to environment-based validation
+    if (!isValidUser) {
       isValidUser = validateCredentials(username, password);
     }
     
@@ -51,23 +55,31 @@ router.post('/login', async (req, res) => {
       
       // Update last login in database if user exists
       if (userId) {
-        await pool.query(
-          'UPDATE users SET last_login = NOW() WHERE id = $1',
-          [userId]
-        );
+        try {
+          await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [userId]);
+        } catch (dbError) {
+          console.log('Failed to update last login:', dbError.message);
+        }
       }
       
-      // Log successful login to console and database
-      console.log(`✅ LOGIN_SUCCESS: User ${username} from IP ${clientIP} at ${new Date().toISOString()}`);
-      await logActivity(req.sessionID, 'LOGIN_SUCCESS', username, userAgent, clientIP);
+      // Log successful login
+      console.log(`✅ LOGIN_SUCCESS: User ${username} from IP ${clientIP}`);
+      try {
+        await logActivity(req.sessionID, 'LOGIN_SUCCESS', username, userAgent, clientIP);
+      } catch (logError) {
+        console.log('Failed to log activity:', logError.message);
+      }
       
-      // Redirect to intended page or default
       const redirectUrl = req.query.redirect || '/pages/page1';
       res.redirect(redirectUrl);
     } else {
       // Log failed login attempt
-      console.log(`❌ LOGIN_FAILED: Username ${username} from IP ${clientIP} at ${new Date().toISOString()}`);
-      await logActivity(req.sessionID, 'LOGIN_FAILED', `Failed login for ${username}`, userAgent, clientIP);
+      console.log(`❌ LOGIN_FAILED: Username ${username} from IP ${clientIP}`);
+      try {
+        await logActivity(req.sessionID, 'LOGIN_FAILED', `Failed login for ${username}`, userAgent, clientIP);
+      } catch (logError) {
+        console.log('Failed to log activity:', logError.message);
+      }
       
       res.redirect('/auth/login?error=invalid');
     }
@@ -85,8 +97,7 @@ router.post('/logout', async (req, res) => {
     const userAgent = req.get('User-Agent') || 'unknown';
     
     try {
-      // Log logout to console and database
-      console.log(`👋 LOGOUT: User ${username} from IP ${clientIP} at ${new Date().toISOString()}`);
+      console.log(`👋 LOGOUT: User ${username} from IP ${clientIP}`);
       await logActivity(req.sessionID, 'LOGOUT', username, userAgent, clientIP);
     } catch (error) {
       console.error('Logout logging error:', error);
@@ -119,7 +130,6 @@ router.get('/status', (req, res) => {
 // API health check endpoint
 router.get('/health', async (req, res) => {
   try {
-    // Test database connection
     await pool.query('SELECT 1');
     res.json({
       status: 'healthy',

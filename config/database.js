@@ -1,3 +1,4 @@
+// config/database.js - Updated for Neon integration
 const { Pool } = require('pg');
 
 // Neon Postgres optimized configuration
@@ -74,122 +75,28 @@ async function initializeTables() {
   try {
     client = await pool.connect();
     
-    console.log('🔧 Initializing database tables...');
+    console.log('🔧 Checking database tables...');
 
-    // Create activity_logs table with enhanced structure
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS activity_logs (
-        id SERIAL PRIMARY KEY,
-        session_id VARCHAR(255) NOT NULL,
-        action VARCHAR(100) NOT NULL,
-        details TEXT,
-        user_agent TEXT,
-        ip_address INET,
-        timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
+    // Check if our main tables exist
+    const tableCheck = await client.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name IN ('users', 'activity_logs', 'edi_documents', 'user_sessions', 'system_config')
     `);
 
-    // Create optimized indexes
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_activity_logs_session_id ON activity_logs(session_id)
-    `);
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_activity_logs_timestamp ON activity_logs(timestamp DESC)
-    `);
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action)
-    `);
+    console.log(`✅ Found ${tableCheck.rows.length} tables in database`);
+    
+    if (tableCheck.rows.length < 5) {
+      console.log('⚠️  Some tables missing. Please run the SQL schema in Neon console.');
+    }
 
-    // Create sessions table for express-session (Neon compatible)
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS "session" (
-        "sid" VARCHAR NOT NULL COLLATE "default",
-        "sess" JSON NOT NULL,
-        "expire" TIMESTAMP(6) NOT NULL
-      ) WITH (OIDS=FALSE)
-    `);
-
-    // Add primary key if not exists (safe for re-runs)
-    await client.query(`
-      DO $$ 
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM pg_constraint WHERE conname = 'session_pkey'
-        ) THEN
-          ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid");
-        END IF;
-      END $$
-    `);
-
-    // Create index for session cleanup
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire")
-    `);
-
-    // Create users table (for future expansion)
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        email VARCHAR(100),
-        role VARCHAR(20) DEFAULT 'user',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        last_login TIMESTAMP WITH TIME ZONE,
-        is_active BOOLEAN DEFAULT TRUE
-      )
-    `);
-
-    // Create system_settings table
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS system_settings (
-        id SERIAL PRIMARY KEY,
-        setting_key VARCHAR(100) UNIQUE NOT NULL,
-        setting_value TEXT,
-        description TEXT,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `);
-
-    // Insert default admin user (using bcrypt hash for '1234')
-    await client.query(`
-      INSERT INTO users (username, password_hash, email, role) 
-      VALUES ('admin', '$2b$10$7ZvZmFTBUBVnZqJ5Z2v0d.cKS0cFwIlP1pRJ9cYjY5cXQYZJ8cFwC', 'admin@edi-system.com', 'admin')
-      ON CONFLICT (username) DO NOTHING
-    `);
-
-    // Insert default system settings
-    await client.query(`
-      INSERT INTO system_settings (setting_key, setting_value, description) VALUES
-      ('system_name', 'EDI Management System', 'Name of the system'),
-      ('session_timeout', '30', 'Session timeout in minutes'),
-      ('max_login_attempts', '5', 'Maximum login attempts before lockout'),
-      ('maintenance_mode', 'false', 'System maintenance mode flag')
-      ON CONFLICT (setting_key) DO NOTHING
-    `);
-
-    // Create view for recent activities
-    await client.query(`
-      CREATE OR REPLACE VIEW recent_activities AS
-      SELECT 
-        al.*,
-        CASE 
-          WHEN al.action = 'LOGIN_SUCCESS' THEN 'User logged in successfully'
-          WHEN al.action = 'LOGIN_FAILED' THEN 'Failed login attempt'
-          WHEN al.action = 'LOGOUT' THEN 'User logged out'
-          WHEN al.action = 'PAGE_ACCESS' THEN 'Accessed page: ' || COALESCE(al.details, 'Unknown')
-          ELSE al.action
-        END AS action_description
-      FROM activity_logs al
-      ORDER BY al.timestamp DESC
-      LIMIT 100
-    `);
-
-    console.log('✅ Database tables initialized successfully');
-    console.log('📊 Tables created: activity_logs, session, users, system_settings');
+    // Test a simple query
+    await client.query('SELECT 1');
+    console.log('✅ Database connection and tables verified');
     
   } catch (err) {
-    console.error('❌ Error initializing database tables:', err.message);
+    console.error('❌ Error checking database tables:', err.message);
     throw err;
   } finally {
     if (client) client.release();

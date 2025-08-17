@@ -1,7 +1,7 @@
 {
   "name": "edi-manage-system",
   "version": "1.0.0",
-  "description": "EDI Management System with authentication, session management, and database integration",
+  "description": "EDI Management System with authentication, session management, database integration, and file processing",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,18 +11,30 @@
     "setup-db": "node scripts/setup-database.js",
     "check-db": "node -e \"require('./config/database').testConnection().then(() => process.exit(0)).catch(() => process.exit(1))\""
   },
-  "keywords": ["edi", "management", "express", "session", "auth", "vercel", "postgresql", "neon"],
+  "keywords": [
+    "edi",
+    "management",
+    "express",
+    "session",
+    "auth",
+    "vercel",
+    "postgresql",
+    "neon",
+    "file-upload"
+  ],
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
+    "bcrypt": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-session": "^1.17.3",
     "helmet": "^7.1.0",
-    "cors": "^2.8.5",
+    "iconv-lite": "^0.6.3",
     "morgan": "^1.10.0",
-    "dotenv": "^16.3.1",
-    "pg": "^8.11.0",
-    "bcrypt": "^5.1.0"
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.11.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

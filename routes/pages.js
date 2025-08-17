@@ -1,4 +1,4 @@
-// routes/pages.js - Updated with database integration
+// routes/pages.js - Final version with database integration
 const express = require('express');
 const path = require('path');
 const { pool, logActivity } = require('../config/database');
@@ -36,23 +36,38 @@ router.get('/page3', logPageAccess, (req, res) => {
 // API endpoint for dashboard statistics
 router.get('/api/dashboard-stats', async (req, res) => {
   try {
-    const stats = await pool.query('SELECT * FROM dashboard_stats');
-    const result = stats.rows[0] || {
-      total_records: 0,
-      active_sessions: 0,
-      recent_activities_count: 0
-    };
+    // Get total EDI documents
+    const documentsResult = await pool.query('SELECT COUNT(*) as count FROM edi_documents');
+    const totalRecords = parseInt(documentsResult.rows[0].count);
     
-    // Add system pages count (static)
-    result.system_pages = 3;
+    // Get active sessions (simulate for now)
+    const sessionsResult = await pool.query(`
+      SELECT COUNT(DISTINCT session_id) as count 
+      FROM activity_logs 
+      WHERE timestamp > NOW() - INTERVAL '1 hour'
+    `);
+    const activeSessions = parseInt(sessionsResult.rows[0].count) || 1;
     
-    res.json(result);
+    // Get recent activities count
+    const activitiesResult = await pool.query(`
+      SELECT COUNT(*) as count 
+      FROM activity_logs 
+      WHERE timestamp > NOW() - INTERVAL '24 hours'
+    `);
+    const recentActivitiesCount = parseInt(activitiesResult.rows[0].count);
+    
+    res.json({
+      total_records: totalRecords,
+      active_sessions: activeSessions,
+      system_pages: 3,
+      recent_activities_count: recentActivitiesCount
+    });
   } catch (error) {
     console.error('Dashboard stats error:', error);
-    // Return default values if database query fails
+    // Return demo values if database query fails
     res.json({
-      total_records: 42,
-      active_sessions: 12,
+      total_records: 0,
+      active_sessions: 1,
       system_pages: 3,
       recent_activities_count: 5
     });
@@ -122,13 +137,17 @@ router.post('/api/process-data', async (req, res) => {
     };
     
     // Log the data processing activity
-    await logActivity(
-      req.sessionID, 
-      'DATA_PROCESSED', 
-      `Processed ${data.length} characters: "${data.substring(0, 50)}${data.length > 50 ? '...' : ''}"`,
-      userAgent, 
-      clientIP
-    );
+    try {
+      await logActivity(
+        req.sessionID, 
+        'DATA_PROCESSED', 
+        `Processed ${data.length} characters: "${data.substring(0, 50)}${data.length > 50 ? '...' : ''}"`,
+        userAgent, 
+        clientIP
+      );
+    } catch (logError) {
+      console.log('Failed to log data processing:', logError.message);
+    }
     
     res.json(processedData);
   } catch (error) {
@@ -164,13 +183,17 @@ router.post('/api/system-action', async (req, res) => {
     }
     
     // Log the system action
-    await logActivity(
-      req.sessionID,
-      `SYSTEM_${action.toUpperCase()}`,
-      JSON.stringify(result),
-      userAgent,
-      clientIP
-    );
+    try {
+      await logActivity(
+        req.sessionID,
+        `SYSTEM_${action.toUpperCase()}`,
+        JSON.stringify(result),
+        userAgent,
+        clientIP
+      );
+    } catch (logError) {
+      console.log('Failed to log system action:', logError.message);
+    }
     
     res.json(result);
   } catch (error) {
@@ -183,7 +206,7 @@ router.post('/api/system-action', async (req, res) => {
 router.get('/api/activity-log', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
     
     const activities = await pool.query(`
@@ -224,18 +247,12 @@ router.get('/api/activity-log', async (req, res) => {
       activities: [
         {
           timestamp: new Date().toISOString(),
-          action: 'DEMO_MODE',
-          action_description: 'Database not connected - showing demo data',
+          action: 'DATABASE_ERROR',
+          action_description: 'Database query failed - check connection',
           username: 'system'
-        },
-        {
-          timestamp: new Date(Date.now() - 30000).toISOString(),
-          action: 'PAGE_ACCESS',
-          action_description: 'Accessed page: /pages/page2',
-          username: req.session.username || 'demo'
         }
       ],
-      pagination: { page: 1, limit: 50, total: 2, totalPages: 1 }
+      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 }
     });
   }
 });
