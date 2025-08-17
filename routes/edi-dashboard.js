@@ -30,13 +30,13 @@ const upload = multer({
 
 // Simple product code to Japanese name mapping
 const productMappings = {
-  'PP4166-7106P003': 'ﾐﾄﾞﾙﾌﾚｰﾑ',     // Middle Frame (RO6)
-  'PP4166-7106P001': 'ﾐﾄﾞﾙﾌﾚｰﾑ',     // Middle Frame (RO10)
-  'PP4166-4681P003': 'ｱｯﾊﾟﾌﾚｰﾑ',     // Upper Frame (RO10)
-  'PP4166-4681P004': 'ｱｯﾊﾟﾌﾚｰﾑ',     // Upper Frame (RO10)
-  'PP4166-4726P003': 'ﾄｯﾌﾟﾌﾟﾚｰﾄ',     // Top Plate (RO10)
-  'PP4166-4726P004': 'ﾄｯﾌﾟﾌﾟﾚｰﾄ',     // Top Plate (RO10)
-  'PP4166-4731P002': 'ﾐﾄﾞﾙﾌﾚｰﾑ'      // Middle Frame (RO10)
+  'PP4166-7106P003': 'ﾐﾄﾞﾙﾌﾚｰﾑ',     // Middle Frame
+  'PP4166-7106P001': 'ﾐﾄﾞﾙﾌﾚｰﾑ',     // Middle Frame
+  'PP4166-4681P003': 'ｱｯﾊﾟﾌﾚｰﾑ',     // Upper Frame
+  'PP4166-4681P004': 'ｱｯﾊﾟﾌﾚｰﾑ',     // Upper Frame
+  'PP4166-4726P003': 'ﾄｯﾌﾟﾌﾟﾚｰﾄ',     // Top Plate
+  'PP4166-4726P004': 'ﾄｯﾌﾟﾌﾟﾚｰﾄ',     // Top Plate
+  'PP4166-4731P002': 'ﾐﾄﾞﾙﾌﾚｰﾑ'      // Middle Frame
 };
 
 // Get Japanese product name from code
@@ -384,7 +384,7 @@ router.post('/fix-product-names', async (req, res) => {
       console.log(`Checking order ${order.id}: code=${order.product_code}, current_name="${order.product_name}", correct_name="${correctName}"`);
       
       // Update if the name is corrupted (contains question marks or diamonds) or is just the product code
-      if (order.product_name.includes('�') || order.product_name === order.product_code || order.product_name.includes('RO')) {
+      if (order.product_name.includes('�') || order.product_name === order.product_code) {
         await pool.query(
           'UPDATE edi_orders SET product_name = $1 WHERE id = $2',
           [correctName, order.id]
@@ -406,6 +406,72 @@ router.post('/fix-product-names', async (req, res) => {
     console.error('Error fixing product names:', error);
     res.status(500).json({ error: 'Failed to fix product names' });
   }
+});
+
+// Database diagnostic endpoint
+router.get('/database-info', async (req, res) => {
+  try {
+    // Check what tables exist
+    const tablesResult = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name
+    `);
+    
+    // Check edi_orders table structure if it exists
+    let ediOrdersColumns = [];
+    try {
+      const columnsResult = await pool.query(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = 'edi_orders' 
+        ORDER BY ordinal_position
+      `);
+      ediOrdersColumns = columnsResult.rows;
+    } catch (err) {
+      console.log('edi_orders table does not exist');
+    }
+    
+    // Check if we have any data
+    let orderCount = 0;
+    let sampleData = [];
+    try {
+      const countResult = await pool.query('SELECT COUNT(*) as count FROM edi_orders');
+      orderCount = parseInt(countResult.rows[0].count);
+      
+      // Get sample data to see current state
+      const sampleResult = await pool.query('SELECT id, order_number, product_code, product_name FROM edi_orders LIMIT 5');
+      sampleData = sampleResult.rows;
+    } catch (err) {
+      console.log('Cannot query edi_orders');
+    }
+    
+    res.json({
+      tables: tablesResult.rows.map(row => row.table_name),
+      edi_orders_columns: ediOrdersColumns,
+      edi_orders_count: orderCount,
+      sample_data: sampleData,
+      database_connected: true
+    });
+    
+  } catch (error) {
+    console.error('Database info error:', error);
+    res.status(500).json({ 
+      error: 'Database connection failed',
+      details: error.message,
+      database_connected: false
+    });
+  }
+});
+
+// Simple test endpoint
+router.get('/test', (req, res) => {
+  res.json({ 
+    message: 'EDI routes are working!',
+    productMappings: Object.keys(productMappings),
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Delete an order (admin function)
