@@ -1,4 +1,4 @@
-// routes/edi-dashboard.js - New EDI file processing routes
+// routes/edi-dashboard.js - Simplified version with Japanese names only
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -28,18 +28,30 @@ const upload = multer({
   }
 });
 
+// Simple product code to Japanese name mapping
+const productMappings = {
+  'PP4166-7106P003': 'ﾐﾄﾞﾙﾌﾚｰﾑ',     // Middle Frame (RO6)
+  'PP4166-7106P001': 'ﾐﾄﾞﾙﾌﾚｰﾑ',     // Middle Frame (RO10)
+  'PP4166-4681P003': 'ｱｯﾊﾟﾌﾚｰﾑ',     // Upper Frame (RO10)
+  'PP4166-4681P004': 'ｱｯﾊﾟﾌﾚｰﾑ',     // Upper Frame (RO10)
+  'PP4166-4726P003': 'ﾄｯﾌﾟﾌﾟﾚｰﾄ',     // Top Plate (RO10)
+  'PP4166-4726P004': 'ﾄｯﾌﾟﾌﾟﾚｰﾄ',     // Top Plate (RO10)
+  'PP4166-4731P002': 'ﾐﾄﾞﾙﾌﾚｰﾑ'      // Middle Frame (RO10)
+};
+
+// Get Japanese product name from code
+function getProductNameFromCode(productCode) {
+  return productMappings[productCode] || productCode;
+}
+
 // EDI Dashboard page
 router.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, '../views/edi-dashboard.html'));
 });
 
-// Parse EDI file function (based on your Python logic)
-const iconv = require('iconv-lite');
-
+// Parse EDI file function
 function parseEDIFile(fileBuffer) {
   try {
-    // Convert buffer to string using Shift-JIS encoding (exactly like Python code)
-    // Read the file with Shift-JIS encoding
     console.log('📄 File size:', fileBuffer.length, 'bytes');
     
     let content;
@@ -71,13 +83,13 @@ function parseEDIFile(fileBuffer) {
     
     console.log(`📊 File loaded: ${data.length} data rows, ${headers.length} columns`);
     
-    // Your selected column indices (0-based)
+    // Column indices for the data we need
     const selectedColumns = [
-      { index: 6, name: '注文番号', key: 'order_number' },                    // Order Number
-      { index: 22, name: '発注者品名コード', key: 'product_code' },            // Orderer Product Code
-      { index: 20, name: '品名（品名仕様）', key: 'product_name' },            // Product Name/Specification
-      { index: 14, name: '注文数量（受注数量）', key: 'order_quantity' },        // Order Quantity
-      { index: 27, name: '納期', key: 'delivery_date' }                       // Delivery Date
+      { index: 6, name: '注文番号', key: 'order_number' },
+      { index: 22, name: '発注者品名コード', key: 'product_code' },
+      { index: 20, name: '品名（品名仕様）', key: 'product_name' },
+      { index: 14, name: '注文数量（受注数量）', key: 'order_quantity' },
+      { index: 27, name: '納期', key: 'delivery_date' }
     ];
     
     // Validate columns exist
@@ -97,18 +109,20 @@ function parseEDIFile(fileBuffer) {
         continue;
       }
       
+      const productCode = (row[22] || '').trim();
+      
       const extractedRow = {
         row_number: i + 1,
         order_number: (row[6] || '').trim(),
-        product_code: (row[22] || '').trim(),
-        product_name: (row[20] || '').trim(),
+        product_code: productCode,
+        product_name: getProductNameFromCode(productCode), // Use mapping instead of parsed text
         order_quantity: (row[14] || '').trim(),
         delivery_date: (row[27] || '').trim()
       };
       
-      // Debug: Log Japanese text to verify encoding
-      if (i < 3) { // Log first 3 rows for debugging
-        console.log(`📋 Row ${i + 1} product_name:`, extractedRow.product_name);
+      // Debug: Log product code mapping
+      if (i < 3) {
+        console.log(`📋 Row ${i + 1} - Code: ${productCode} → Name: ${extractedRow.product_name}`);
       }
       
       // Skip rows with empty order numbers
@@ -353,6 +367,37 @@ router.get('/stats', async (req, res) => {
       uniqueProducts: 0,
       recentUploads: 0
     });
+  }
+});
+
+// Fix existing corrupted product names
+router.post('/fix-product-names', async (req, res) => {
+  try {
+    const orders = await pool.query('SELECT id, product_code, product_name FROM edi_orders');
+    let updatedCount = 0;
+    
+    for (const order of orders.rows) {
+      const correctName = getProductNameFromCode(order.product_code);
+      
+      // Update if the name is corrupted (contains question marks or diamonds) or is just the product code
+      if (order.product_name.includes('�') || order.product_name === order.product_code) {
+        await pool.query(
+          'UPDATE edi_orders SET product_name = $1 WHERE id = $2',
+          [correctName, order.id]
+        );
+        updatedCount++;
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Fixed ${updatedCount} product names`,
+      totalRecords: orders.rows.length 
+    });
+    
+  } catch (error) {
+    console.error('Error fixing product names:', error);
+    res.status(500).json({ error: 'Failed to fix product names' });
   }
 });
 
