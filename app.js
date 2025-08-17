@@ -1,4 +1,4 @@
-// app.js - Fixed for Vercel serverless deployment
+// app.js - Fixed for Vercel serverless deployment with forecast feature
 const express = require('express');
 const path = require('path');
 const helmet = require('helmet');
@@ -8,7 +8,7 @@ const morgan = require('morgan');
 const app = express();
 
 // Import middleware and routes with error handling
-let sessionConfig, authRoutes, pageRoutes, ediRoutes;
+let sessionConfig, authRoutes, pageRoutes, ediRoutes, forecastRoutes;
 let requireAuth = (req, res, next) => next(); // Fallback
 
 try {
@@ -18,6 +18,7 @@ try {
   authRoutes = require('./routes/auth');
   pageRoutes = require('./routes/pages');
   ediRoutes = require('./routes/edi-dashboard');
+  forecastRoutes = require('./routes/forecast');
   
   const authModule = require('./middleware/auth');
   requireAuth = authModule.requireAuth;
@@ -87,6 +88,10 @@ if (pageRoutes && requireAuth) {
 
 if (ediRoutes && requireAuth) {
   app.use('/edi', requireAuth, ediRoutes);
+}
+
+if (forecastRoutes && requireAuth) {
+  app.use('/forecast', requireAuth, forecastRoutes);
 }
 
 // Root route - redirect to login or dashboard

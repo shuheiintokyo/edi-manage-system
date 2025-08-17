@@ -163,24 +163,65 @@ router.post('/api/import-forecast', upload.single('forecastFile'), async (req, r
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
+
+    // Check user permissions
+    if (req.session.username !== 'admin') {
+      return res.status(403).json({ error: 'Admin permissions required for Excel import' });
+    }
+
+    console.log(`📁 Processing Excel forecast file: ${req.file.originalname} (${req.file.size} bytes)`);
+
+    // For now, return a structured response for future Excel parsing implementation
+    // When you provide the Excel format, this can be completed with actual parsing logic
     
-    // For now, return a placeholder response
-    // TODO: Implement Excel parsing logic when you provide the format details
+    const mockProcessedData = {
+      // Example structure that would be extracted from Excel
+      forecasts: [
+        // { drawing_number: 'PP4166-4681P003', month_date: '2025-01-01', quantity: 100 },
+        // { drawing_number: 'PP4166-4681P003', month_date: '2025-02-01', quantity: 150 },
+        // ... more data would be parsed from Excel
+      ]
+    };
+
     const result = {
       success: true,
-      message: 'Excel import functionality will be implemented based on your client format',
+      message: 'Excel import ready - please provide Excel format details to complete implementation',
       details: {
         filename: req.file.originalname,
         size: req.file.size,
+        expectedColumns: [
+          'Product Code (Drawing Number)',
+          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        ],
+        sampleStructure: {
+          'PP4166-4681P003': { 'Jan': 100, 'Feb': 150, 'Mar': 200 },
+          'PP4166-4681P004': { 'Jan': 80, 'Feb': 120, 'Mar': 160 }
+        },
+        nextSteps: [
+          '1. Provide sample Excel file format',
+          '2. Specify column headers (Japanese/English)',
+          '3. Define data layout and structure',
+          '4. Complete parsing implementation'
+        ],
         rowsProcessed: 0,
-        saved: 0
+        saved: 0,
+        placeholder: true
       }
     };
+
+    // TODO: When Excel format is provided, implement:
+    // 1. Parse Excel file using SheetJS or similar
+    // 2. Extract product codes and monthly data
+    // 3. Validate data format and ranges
+    // 4. Convert to forecast format with proper dates
+    // 5. Bulk insert to database
+    // 6. Return detailed results
     
     await logActivity(
       req.sessionID,
-      'FORECAST_EXCEL_IMPORT',
-      `Attempted Excel import: ${req.file.originalname}`,
+      'FORECAST_EXCEL_IMPORT_ATTEMPT',
+      `Excel import attempted: ${req.file.originalname} - awaiting format specification`,
       userAgent,
       clientIP
     );
@@ -189,7 +230,19 @@ router.post('/api/import-forecast', upload.single('forecastFile'), async (req, r
     
   } catch (error) {
     console.error('Error importing forecast Excel:', error);
-    res.status(500).json({ error: 'Failed to import Excel file' });
+    
+    await logActivity(
+      req.sessionID,
+      'FORECAST_EXCEL_IMPORT_ERROR',
+      `Excel import failed: ${error.message}`,
+      req.get('User-Agent') || 'unknown',
+      getClientIP(req)
+    );
+    
+    res.status(500).json({ 
+      error: 'Failed to import Excel file',
+      details: error.message
+    });
   }
 });
 

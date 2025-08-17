@@ -1,4 +1,4 @@
-// config/database.js - Fixed for Vercel serverless deployment
+// config/database.js - Fixed for Vercel serverless deployment with forecast support
 const { Pool } = require('pg');
 
 // Serverless-optimized configuration
@@ -159,7 +159,42 @@ async function initializeTables() {
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
     `);
 
-    console.log('✅ Database tables verified/created');
+    // Create forecasts table for monthly production forecasting
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS forecasts (
+        id SERIAL PRIMARY KEY,
+        drawing_number VARCHAR(255) NOT NULL,
+        month_date DATE NOT NULL,
+        quantity INTEGER DEFAULT 0,
+        updated_by INTEGER,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(drawing_number, month_date)
+      )
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_forecasts_drawing_number ON forecasts(drawing_number);
+      CREATE INDEX IF NOT EXISTS idx_forecasts_month_date ON forecasts(month_date);
+      CREATE INDEX IF NOT EXISTS idx_forecasts_updated_at ON forecasts(updated_at);
+    `);
+
+    // Create trigger for auto-timestamp updates on forecasts
+    await client.query(`
+      CREATE OR REPLACE FUNCTION update_updated_at_column()
+      RETURNS TRIGGER AS $$
+      BEGIN
+          NEW.updated_at = NOW();
+          RETURN NEW;
+      END;
+      $$ language 'plpgsql';
+    `);
+
+    await client.query(`
+      CREATE TRIGGER update_forecasts_updated_at BEFORE UPDATE ON forecasts
+          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    `);
+
+    console.log('✅ Database tables verified/created including forecasts table');
     
   } catch (err) {
     console.error('❌ Error initializing database tables:', err.message);
