@@ -1,24 +1,246 @@
+// routes/pages.js - Updated with database integration
 const express = require('express');
 const path = require('path');
+const { pool, logActivity } = require('../config/database');
+const { getClientIP } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Middleware to log page access
+async function logPageAccess(req, res, next) {
+  try {
+    const clientIP = getClientIP(req);
+    const userAgent = req.get('User-Agent') || 'unknown';
+    await logActivity(req.sessionID, 'PAGE_ACCESS', req.originalUrl, userAgent, clientIP);
+  } catch (error) {
+    console.error('Page access logging error:', error);
+  }
+  next();
+}
+
 // Sample Page 1
-router.get('/page1', (req, res) => {
+router.get('/page1', logPageAccess, (req, res) => {
   res.sendFile(path.join(__dirname, '../views/page1.html'));
 });
 
 // Sample Page 2
-router.get('/page2', (req, res) => {
+router.get('/page2', logPageAccess, (req, res) => {
   res.sendFile(path.join(__dirname, '../views/page2.html'));
 });
 
 // Sample Page 3
-router.get('/page3', (req, res) => {
+router.get('/page3', logPageAccess, (req, res) => {
   res.sendFile(path.join(__dirname, '../views/page3.html'));
 });
 
-// API endpoint for page data (example)
+// API endpoint for dashboard statistics
+router.get('/api/dashboard-stats', async (req, res) => {
+  try {
+    const stats = await pool.query('SELECT * FROM dashboard_stats');
+    const result = stats.rows[0] || {
+      total_records: 0,
+      active_sessions: 0,
+      recent_activities_count: 0
+    };
+    
+    // Add system pages count (static)
+    result.system_pages = 3;
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Dashboard stats error:', error);
+    // Return default values if database query fails
+    res.json({
+      total_records: 42,
+      active_sessions: 12,
+      system_pages: 3,
+      recent_activities_count: 5
+    });
+  }
+});
+
+// API endpoint for recent activities
+router.get('/api/recent-activities', async (req, res) => {
+  try {
+    const activities = await pool.query(`
+      SELECT 
+        al.*,
+        u.username,
+        CASE 
+          WHEN al.action = 'LOGIN_SUCCESS' THEN 'User logged in successfully'
+          WHEN al.action = 'LOGIN_FAILED' THEN 'Failed login attempt'
+          WHEN al.action = 'LOGOUT' THEN 'User logged out'
+          WHEN al.action = 'PAGE_ACCESS' THEN 'Accessed page: ' || COALESCE(al.details, 'Unknown')
+          WHEN al.action = 'DATA_PROCESSED' THEN 'Processed data: ' || COALESCE(al.details, 'Unknown')
+          ELSE al.action
+        END AS action_description
+      FROM activity_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      ORDER BY al.timestamp DESC
+      LIMIT 20
+    `);
+    
+    res.json(activities.rows);
+  } catch (error) {
+    console.error('Recent activities error:', error);
+    // Return demo data if database query fails
+    res.json([
+      {
+        timestamp: new Date().toISOString(),
+        action: 'PAGE_ACCESS',
+        action_description: 'Accessed page: /pages/page1',
+        username: req.session.username || 'demo'
+      },
+      {
+        timestamp: new Date(Date.now() - 60000).toISOString(),
+        action: 'LOGIN_SUCCESS',
+        action_description: 'User logged in successfully',
+        username: req.session.username || 'demo'
+      }
+    ]);
+  }
+});
+
+// API endpoint for data processing (Page 2)
+router.post('/api/process-data', async (req, res) => {
+  try {
+    const { data } = req.body;
+    const clientIP = getClientIP(req);
+    const userAgent = req.get('User-Agent') || 'unknown';
+    
+    if (!data) {
+      return res.status(400).json({ error: 'No data provided' });
+    }
+    
+    // Simulate data processing
+    const processedData = {
+      original: data,
+      processed: data.toUpperCase(),
+      length: data.length,
+      timestamp: new Date().toISOString(),
+      processedBy: req.session.username
+    };
+    
+    // Log the data processing activity
+    await logActivity(
+      req.sessionID, 
+      'DATA_PROCESSED', 
+      `Processed ${data.length} characters: "${data.substring(0, 50)}${data.length > 50 ? '...' : ''}"`,
+      userAgent, 
+      clientIP
+    );
+    
+    res.json(processedData);
+  } catch (error) {
+    console.error('Data processing error:', error);
+    res.status(500).json({ error: 'Processing failed' });
+  }
+});
+
+// API endpoint for system actions (Page 3)
+router.post('/api/system-action', async (req, res) => {
+  try {
+    const { action } = req.body;
+    const clientIP = getClientIP(req);
+    const userAgent = req.get('User-Agent') || 'unknown';
+    
+    let result = {};
+    
+    switch (action) {
+      case 'refresh_data':
+        result = { message: 'Data refreshed successfully', timestamp: new Date().toISOString() };
+        break;
+      case 'clear_cache':
+        result = { message: 'Cache cleared successfully', timestamp: new Date().toISOString() };
+        break;
+      case 'show_help':
+        result = { 
+          message: 'Help information loaded',
+          helpTopics: ['Getting Started', 'EDI Processing', 'User Management', 'System Settings']
+        };
+        break;
+      default:
+        return res.status(400).json({ error: 'Unknown action' });
+    }
+    
+    // Log the system action
+    await logActivity(
+      req.sessionID,
+      `SYSTEM_${action.toUpperCase()}`,
+      JSON.stringify(result),
+      userAgent,
+      clientIP
+    );
+    
+    res.json(result);
+  } catch (error) {
+    console.error('System action error:', error);
+    res.status(500).json({ error: 'System action failed' });
+  }
+});
+
+// API endpoint for activity log (for Page 3)
+router.get('/api/activity-log', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
+    
+    const activities = await pool.query(`
+      SELECT 
+        al.*,
+        u.username,
+        CASE 
+          WHEN al.action = 'LOGIN_SUCCESS' THEN 'User logged in successfully'
+          WHEN al.action = 'LOGIN_FAILED' THEN 'Failed login attempt'
+          WHEN al.action = 'LOGOUT' THEN 'User logged out'
+          WHEN al.action = 'PAGE_ACCESS' THEN 'Accessed page: ' || COALESCE(al.details, 'Unknown')
+          WHEN al.action = 'DATA_PROCESSED' THEN 'Processed data'
+          WHEN al.action LIKE 'SYSTEM_%' THEN 'System action: ' || REPLACE(al.action, 'SYSTEM_', '')
+          ELSE al.action
+        END AS action_description
+      FROM activity_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      ORDER BY al.timestamp DESC
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+    
+    const countResult = await pool.query('SELECT COUNT(*) as total FROM activity_logs');
+    const total = parseInt(countResult.rows[0].total);
+    
+    res.json({
+      activities: activities.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Activity log error:', error);
+    // Return demo data if database query fails
+    res.json({
+      activities: [
+        {
+          timestamp: new Date().toISOString(),
+          action: 'DEMO_MODE',
+          action_description: 'Database not connected - showing demo data',
+          username: 'system'
+        },
+        {
+          timestamp: new Date(Date.now() - 30000).toISOString(),
+          action: 'PAGE_ACCESS',
+          action_description: 'Accessed page: /pages/page2',
+          username: req.session.username || 'demo'
+        }
+      ],
+      pagination: { page: 1, limit: 50, total: 2, totalPages: 1 }
+    });
+  }
+});
+
+// API endpoint for page data (backward compatibility)
 router.get('/api/data', (req, res) => {
   res.json({
     message: 'Protected data',

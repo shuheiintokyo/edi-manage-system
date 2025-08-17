@@ -64,4 +64,13 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Page not found' });
 });
 
+// Add this line after your existing routes
+app.use('/api', requireAuth, (req, res, next) => {
+  if (req.originalUrl === '/api/health') {
+    next();
+  } else {
+    next();
+  }
+});
+
 module.exports = app;
