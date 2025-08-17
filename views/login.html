@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDI Management System - Login</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>EDI Management System</h1>
+                <p>Please sign in to continue</p>
+            </div>
+            
+            <form class="login-form" method="POST" action="/auth/login">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" value="admin" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password (4 digits):</label>
+                    <input type="password" id="password" name="password" placeholder="Enter 4-digit password" maxlength="4" required>
+                </div>
+                
+                <button type="submit" class="login-btn">Sign In</button>
+            </form>
+            
+            <div class="login-footer">
+                <p>Default credentials: admin / 1234</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Handle URL parameters for messages
+        const urlParams = new URLSearchParams(window.location.search);
+        const error = urlParams.get('error');
+        const message = urlParams.get('message');
+        
+        if (error === 'invalid') {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = 'Invalid username or password';
+            document.querySelector('.login-form').prepend(errorDiv);
+        }
+        
+        if (message === 'logged_out') {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = 'You have been successfully logged out';
+            document.querySelector('.login-form').prepend(successDiv);
+        }
+        
+        // Auto-focus password field if username is pre-filled
+        if (document.getElementById('username').value) {
+            document.getElementById('password').focus();
+        }
+    </script>
+</body>
+</html>

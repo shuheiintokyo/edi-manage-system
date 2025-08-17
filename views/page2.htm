@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDI Management System - Page 2</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h2>EDI Management System</h2>
+        </div>
+        <div class="nav-links">
+            <a href="/pages/page1">Page 1</a>
+            <a href="/pages/page2" class="active">Page 2</a>
+            <a href="/pages/page3">Page 3</a>
+        </div>
+        <div class="nav-user">
+            <span class="username">Welcome, <span id="current-user">admin</span></span>
+            <form method="POST" action="/auth/logout" style="display: inline;">
+                <button type="submit" class="logout-btn">Logout</button>
+            </form>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="page-header">
+            <h1>Sample Page 2</h1>
+            <p>This is the second sample page for data management and processing.</p>
+        </div>
+        
+        <div class="content-grid">
+            <div class="card">
+                <h3>Data Processing</h3>
+                <p>This page could handle file uploads, data transformation, or batch processing.</p>
+                <div class="form-group">
+                    <label for="sample-input">Sample Input:</label>
+                    <input type="text" id="sample-input" placeholder="Enter some data...">
+                </div>
+                <button class="primary-btn" onclick="processData()">Process Data</button>
+                <div id="processing-result" class="result-area" style="display: none;"></div>
+            </div>
+            
+            <div class="card">
+                <h3>System Information</h3>
+                <table class="info-table">
+                    <tr>
+                        <td>Current Page:</td>
+                        <td>Page 2 - Data Processing</td>
+                    </tr>
+                    <tr>
+                        <td>User:</td>
+                        <td id="table-user">admin</td>
+                    </tr>
+                    <tr>
+                        <td>Session Time:</td>
+                        <td id="session-time">Active</td>
+                    </tr>
+                    <tr>
+                        <td>Last Access:</td>
+                        <td class="timestamp"></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/main.js"></script>
+    <script>
+        // Update timestamp
+        document.querySelector('.timestamp').textContent = new Date().toLocaleString();
+        
+        // Load user info
+        fetch('/auth/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.username) {
+                    document.getElementById('current-user').textContent = data.username;
+                    document.getElementById('table-user').textContent = data.username;
+                }
+            })
+            .catch(error => console.error('Error loading user status:', error));
+        
+        // Sample data processing function
+        function processData() {
+            const input = document.getElementById('sample-input').value;
+            const resultDiv = document.getElementById('processing-result');
+            
+            if (input.trim()) {
+                resultDiv.innerHTML = `
+                    <h4>Processing Result:</h4>
+                    <p>Input: "${input}"</p>
+                    <p>Processed: "${input.toUpperCase()}"</p>
+                    <p>Length: ${input.length} characters</p>
+                    <p>Timestamp: ${new Date().toISOString()}</p>
+                `;
+                resultDiv.style.display = 'block';
+            } else {
+                alert('Please enter some data to process');
+            }
+        }
+    </script>
+</body>
+</html>
