@@ -6,7 +6,7 @@
     <title>EDI Management System - Forecast</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
-        /* Enhanced Forecast Styles */
+        /* Forecast Dashboard Styles */
         .forecast-container {
             max-width: 1400px;
             margin: 0 auto;
@@ -514,15 +514,15 @@
                 this.ediDeliveryDates = [];
                 this.forecastStartDate = null;
                 
-                // 7 Product codes with Japanese names
+                // 7 Product codes with Japanese names - CORRECT ORDER
                 this.products = [
-                    { code: 'PP4166-4681P003', name: 'ｱｯﾊﾟﾌﾞﾚｰﾑ', color: '#e74c3c' },
-                    { code: 'PP4166-4681P004', name: 'ｱｯﾊﾟﾌﾞﾚｰﾑ', color: '#c0392b' },
-                    { code: 'PP4166-4726P003', name: 'ﾄｯﾌﾟﾌﾟﾚｰﾄ', color: '#2ecc71' },
-                    { code: 'PP4166-4726P004', name: 'ﾄｯﾌﾟﾌﾟﾚｰﾄ', color: '#27ae60' },
-                    { code: 'PP4166-4731P002', name: 'ﾐﾄﾞﾙﾌﾚｰﾑ', color: '#3498db' },
-                    { code: 'PP4166-7106P001', name: 'ﾐﾄﾞﾙﾌﾚｰﾑ', color: '#2980b9' },
-                    { code: 'PP4166-7106P003', name: 'ﾐﾄﾞﾙﾌﾚｰﾑ', color: '#1abc9c' }
+                    { code: 'PP4166-4681P003', name: 'アッパフレーム', color: '#e74c3c' },
+                    { code: 'PP4166-4681P004', name: 'アッパフレーム', color: '#c0392b' },
+                    { code: 'PP4166-4726P003', name: 'トッププレート', color: '#2ecc71' },
+                    { code: 'PP4166-4726P004', name: 'トッププレート', color: '#27ae60' },
+                    { code: 'PP4166-4731P002', name: 'ミドルフレーム', color: '#3498db' },
+                    { code: 'PP4166-7106P003', name: 'ミドルフレーム', color: '#2980b9' },
+                    { code: 'PP4166-7106P001', name: 'ミドルフレーム', color: '#1abc9c' }
                 ];
             }
 
@@ -692,7 +692,7 @@
                         return userInfo;
                     } else {
                         console.log('❌ User not authenticated, redirecting to login');
-                        window.location.href = '/';
+                        window.location.href = '/auth/login';
                         return null;
                     }
                 } catch (error) {
@@ -730,7 +730,7 @@
                     
                     if (response.status === 401) {
                         this.showMessage('Session expired. Please log in again.', 'error');
-                        setTimeout(() => window.location.href = '/', 2000);
+                        setTimeout(() => window.location.href = '/auth/login', 2000);
                         return;
                     }
                     
@@ -1092,10 +1092,10 @@
             async logout() {
                 try {
                     await fetch('/forecast/api/logout', { method: 'POST' });
-                    window.location.href = '/';
+                    window.location.href = '/auth/login';
                 } catch (error) {
                     console.error('Logout error:', error);
-                    window.location.href = '/';
+                    window.location.href = '/auth/login';
                 }
             }
 
@@ -1164,9 +1164,30 @@ Check console for detailed logs.`);
             forecastManager.showDebugInfo();
         }
 
+        // Check authentication and redirect if needed
+        async function checkAuth() {
+            try {
+                const response = await fetch('/auth/status');
+                const data = await response.json();
+                
+                if (!data.authenticated) {
+                    window.location.href = '/auth/login';
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/auth/login';
+                return false;
+            }
+        }
+
         // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            forecastManager.initialize();
+        document.addEventListener('DOMContentLoaded', async function() {
+            const isAuthenticated = await checkAuth();
+            if (isAuthenticated) {
+                forecastManager.initialize();
+            }
         });
     </script>
 </body>

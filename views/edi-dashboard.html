@@ -29,11 +29,73 @@
             font-size: 2.5rem;
         }
 
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 25px;
-            margin-bottom: 30px;
+        /* Product Tabs */
+        .product-tabs {
+            display: flex;
+            background: #f8fafc;
+            border-bottom: 2px solid #e5e7eb;
+            border-radius: 10px 10px 0 0;
+            overflow-x: auto;
+            margin-bottom: 0;
+            margin-top: 30px;
+        }
+
+        .product-tab {
+            padding: 15px 25px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            min-width: 200px;
+            text-align: center;
+        }
+
+        .product-tab:hover {
+            background: #e5e7eb;
+        }
+
+        .product-tab.active {
+            background: white;
+            border-bottom-color: #667eea;
+            color: #667eea;
+        }
+
+        .product-tab .tab-code {
+            display: block;
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 3px;
+        }
+
+        .product-tab .tab-name {
+            display: block;
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .product-tab .tab-count {
+            display: block;
+            font-size: 11px;
+            opacity: 0.6;
+            margin-top: 2px;
+        }
+
+        .tab-content {
+            display: none;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+            padding: 30px;
+            min-height: 500px;
+        }
+
+        .tab-content.active {
+            display: block;
         }
 
         .chart-container {
@@ -42,6 +104,7 @@
             padding: 25px;
             box-shadow: 0 8px 25px rgba(0,0,0,0.1);
             border: 1px solid #e5e7eb;
+            margin-bottom: 30px;
         }
 
         .chart-container h3 {
@@ -103,6 +166,15 @@
 
         .upload-btn:hover {
             transform: translateY(-2px);
+        }
+
+        .main-orders-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border: 1px solid #e5e7eb;
+            margin-bottom: 30px;
         }
 
         .orders-section {
@@ -285,9 +357,69 @@
             color: #1e40af;
         }
 
+        .product-summary {
+            background: linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 100%);
+            border: 2px solid #667eea;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+
+        .product-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .product-details h3 {
+            margin: 0;
+            color: #1f2937;
+            font-size: 1.4rem;
+        }
+
+        .product-details p {
+            margin: 5px 0 0 0;
+            color: #6b7280;
+            font-size: 0.95rem;
+        }
+
+        .product-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #667eea;
+        }
+
+        .stat-item .stat-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-item .stat-label {
+            color: #6b7280;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
         @media (max-width: 768px) {
-            .dashboard-grid {
-                grid-template-columns: 1fr;
+            .product-tabs {
+                flex-direction: column;
+            }
+            
+            .product-tab {
+                min-width: auto;
+                text-align: left;
             }
             
             .controls-section {
@@ -348,22 +480,6 @@
             </div>
         </div>
 
-        <!-- Charts Grid -->
-        <div class="dashboard-grid">
-            <div class="chart-container">
-                <h3>📈 Orders & Forecast Timeline</h3>
-                <div class="chart-wrapper">
-                    <canvas id="ordersChart"></canvas>
-                </div>
-            </div>
-            <div class="chart-container">
-                <h3>📊 Order Status Distribution</h3>
-                <div class="chart-wrapper">
-                    <canvas id="statusChart"></canvas>
-                </div>
-            </div>
-        </div>
-
         <!-- File Upload Section -->
         <div class="upload-section">
             <h3>📁 Upload EDI Files</h3>
@@ -381,11 +497,11 @@
             </div>
         </div>
 
-        <!-- Orders Section -->
-        <div class="orders-section">
+        <!-- Main Orders List (Prioritized) -->
+        <div class="main-orders-section">
             <div class="controls-section">
                 <button class="btn btn-primary" onclick="loadOrders()">🔄 Refresh Orders</button>
-                <button class="btn btn-success" onclick="loadChartData()">📊 Update Charts</button>
+                <button class="btn btn-success" onclick="loadChartData()">📊 Update Data</button>
                 <button class="btn btn-warning" onclick="showDebugInfo()">🔍 Debug Info</button>
             </div>
 
@@ -394,22 +510,22 @@
                 Loading orders...
             </div>
 
-            <div id="ordersContainer">
-                <h3>📋 Production Orders</h3>
-                <p>Click on status indicators to update order progress. Long press (3+ seconds) to reset to default.</p>
-                <table class="orders-table" id="ordersTable">
+            <div id="mainOrdersContainer">
+                <h3>📋 All Production Orders (Prioritized by Product & Delivery Date)</h3>
+                <p>Orders sorted by product priority first, then by delivery date. Click status to update progress.</p>
+                <table class="orders-table" id="mainOrdersTable">
                     <thead>
                         <tr>
-                            <th>Order Number</th>
                             <th>Product Code</th>
                             <th>Product Name</th>
+                            <th>Order Number</th>
                             <th>Quantity</th>
                             <th>Delivery Date</th>
                             <th>Status</th>
                             <th>Updated</th>
                         </tr>
                     </thead>
-                    <tbody id="ordersTableBody">
+                    <tbody id="mainOrdersTableBody">
                         <tr>
                             <td colspan="7" style="text-align: center; padding: 40px; color: #6b7280;">
                                 Click "Refresh Orders" to load current orders
@@ -418,6 +534,16 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+
+        <!-- Product Tabs -->
+        <div class="product-tabs" id="productTabs">
+            <!-- Tabs will be generated dynamically -->
+        </div>
+
+        <!-- Tab Contents -->
+        <div id="tabContents">
+            <!-- Tab contents will be generated dynamically -->
         </div>
     </div>
 
@@ -428,6 +554,29 @@
                 this.orders = [];
                 this.forecasts = {};
                 this.charts = {};
+                this.activeProductCode = null;
+                
+                // Product priority order and mapping
+                this.productPriority = [
+                    'PP4166-4681P003',
+                    'PP4166-4681P004', 
+                    'PP4166-4726P003',
+                    'PP4166-4726P004',
+                    'PP4166-4731P002',
+                    'PP4166-7106P003',
+                    'PP4166-7106P001'
+                ];
+
+                this.productMappings = {
+                    'PP4166-4681P003': 'アッパフレーム',     // Upper Frame
+                    'PP4166-4681P004': 'アッパフレーム',     // Upper Frame  
+                    'PP4166-4726P003': 'トッププレート',     // Top Plate
+                    'PP4166-4726P004': 'トッププレート',     // Top Plate
+                    'PP4166-4731P002': 'ミドルフレーム',     // Middle Frame
+                    'PP4166-7106P003': 'ミドルフレーム',     // Middle Frame
+                    'PP4166-7106P001': 'ミドルフレーム'      // Middle Frame
+                };
+
                 this.statusMap = {
                     'default': { label: 'Default', color: '#3b82f6', clicks: 0 },
                     'half': { label: '1/2 Done', color: '#fbbf24', clicks: 1 },
@@ -446,7 +595,7 @@
                 await this.loadForecastData();
                 await this.loadStats();
                 this.setupFileUpload();
-                this.initializeCharts();
+                this.initializeProductTabs();
                 
                 console.log('✅ EDI Dashboard initialized');
             }
@@ -464,18 +613,50 @@
                 }
             }
 
+            // Sort orders by product priority first, then by delivery date
+            sortOrdersByPriority(orders) {
+                return orders.sort((a, b) => {
+                    // First priority: Product order
+                    const priorityA = this.productPriority.indexOf(a.product_code);
+                    const priorityB = this.productPriority.indexOf(b.product_code);
+                    
+                    // If both products are in priority list
+                    if (priorityA !== -1 && priorityB !== -1) {
+                        if (priorityA !== priorityB) {
+                            return priorityA - priorityB;
+                        }
+                    }
+                    // If only one is in priority list, prioritize it
+                    else if (priorityA !== -1) {
+                        return -1;
+                    }
+                    else if (priorityB !== -1) {
+                        return 1;
+                    }
+                    
+                    // Second priority: Delivery date (earliest first)
+                    const dateA = new Date(a.delivery_date || '9999-12-31');
+                    const dateB = new Date(b.delivery_date || '9999-12-31');
+                    
+                    return dateA.getTime() - dateB.getTime();
+                });
+            }
+
             async loadOrders() {
                 try {
                     this.showLoading(true);
                     
-                    const response = await fetch('/edi/orders?limit=100');
+                    const response = await fetch('/edi/orders?limit=1000');
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     
                     const data = await response.json();
                     this.orders = data.orders || [];
                     
-                    this.renderOrdersTable();
-                    this.updateCharts();
+                    // Sort orders by priority
+                    this.orders = this.sortOrdersByPriority(this.orders);
+                    
+                    this.renderMainOrdersTable();
+                    this.updateProductTabs();
                     
                 } catch (error) {
                     this.showMessage('Failed to load orders: ' + error.message, 'error');
@@ -524,8 +705,8 @@
                 }
             }
 
-            renderOrdersTable() {
-                const tbody = document.getElementById('ordersTableBody');
+            renderMainOrdersTable() {
+                const tbody = document.getElementById('mainOrdersTableBody');
                 
                 if (this.orders.length === 0) {
                     tbody.innerHTML = `
@@ -541,12 +722,13 @@
                 tbody.innerHTML = this.orders.map(order => {
                     const status = order.status || 'default';
                     const statusInfo = this.statusMap[status];
+                    const productName = this.productMappings[order.product_code] || order.product_name || order.product_code;
                     
                     return `
                         <tr>
+                            <td><strong>${order.product_code}</strong></td>
+                            <td>${productName}</td>
                             <td>${order.order_number}</td>
-                            <td>${order.product_code}</td>
-                            <td>${order.product_name}</td>
                             <td>${order.order_quantity}</td>
                             <td>${order.delivery_date}</td>
                             <td>
@@ -564,6 +746,323 @@
                         </tr>
                     `;
                 }).join('');
+            }
+
+            initializeProductTabs() {
+                const tabsContainer = document.getElementById('productTabs');
+                const contentsContainer = document.getElementById('tabContents');
+                
+                tabsContainer.innerHTML = '';
+                contentsContainer.innerHTML = '';
+                
+                this.productPriority.forEach((productCode, index) => {
+                    const productName = this.productMappings[productCode];
+                    
+                    const tabButton = document.createElement('button');
+                    tabButton.className = `product-tab ${index === 0 ? 'active' : ''}`;
+                    tabButton.onclick = () => this.switchToProduct(productCode);
+                    tabButton.innerHTML = `
+                        <span class="tab-code">${productCode}</span>
+                        <span class="tab-name">${productName}</span>
+                        <span class="tab-count" id="count-${productCode}">0 orders</span>
+                    `;
+                    tabsContainer.appendChild(tabButton);
+                    
+                    const tabContent = document.createElement('div');
+                    tabContent.className = `tab-content ${index === 0 ? 'active' : ''}`;
+                    tabContent.id = `tab-${productCode}`;
+                    tabContent.innerHTML = this.generateTabContent(productCode, productName);
+                    contentsContainer.appendChild(tabContent);
+                    
+                    if (index === 0) {
+                        this.activeProductCode = productCode;
+                    }
+                });
+                
+                this.updateProductTabs();
+            }
+
+            generateTabContent(productCode, productName) {
+                return `
+                    <div class="product-summary">
+                        <div class="product-info">
+                            <div class="product-details">
+                                <h3>${productCode}</h3>
+                                <p>${productName} - Individual Product Analysis</p>
+                            </div>
+                        </div>
+                        <div class="product-stats" id="stats-${productCode}">
+                            <div class="stat-item">
+                                <div class="stat-number" id="total-${productCode}">0</div>
+                                <div class="stat-label">Total Orders</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number" id="pending-${productCode}">0</div>
+                                <div class="stat-label">Pending Orders</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number" id="finished-${productCode}">0</div>
+                                <div class="stat-label">Finished Orders</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number" id="quantity-${productCode}">0</div>
+                                <div class="stat-label">Total Quantity</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3>📈 ${productCode} - Orders & Forecast Timeline</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-${productCode}"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="orders-section">
+                        <h3>📋 ${productCode} Orders</h3>
+                        <table class="orders-table">
+                            <thead>
+                                <tr>
+                                    <th>Order Number</th>
+                                    <th>Quantity</th>
+                                    <th>Delivery Date</th>
+                                    <th>Status</th>
+                                    <th>Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orders-${productCode}">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; padding: 20px; color: #6b7280;">
+                                        No orders for this product
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            updateProductTabs() {
+                this.productPriority.forEach(productCode => {
+                    const productOrders = this.orders.filter(order => order.product_code === productCode);
+                    
+                    // Update tab count
+                    const countElement = document.getElementById(`count-${productCode}`);
+                    if (countElement) {
+                        countElement.textContent = `${productOrders.length} orders`;
+                    }
+                    
+                    // Update product stats
+                    const totalOrders = productOrders.length;
+                    const finishedOrders = productOrders.filter(order => order.status === 'finished').length;
+                    const pendingOrders = totalOrders - finishedOrders;
+                    const totalQuantity = productOrders.reduce((sum, order) => sum + (parseInt(order.order_quantity) || 0), 0);
+                    
+                    const totalEl = document.getElementById(`total-${productCode}`);
+                    const pendingEl = document.getElementById(`pending-${productCode}`);
+                    const finishedEl = document.getElementById(`finished-${productCode}`);
+                    const quantityEl = document.getElementById(`quantity-${productCode}`);
+                    
+                    if (totalEl) totalEl.textContent = totalOrders;
+                    if (pendingEl) pendingEl.textContent = pendingOrders;
+                    if (finishedEl) finishedEl.textContent = finishedOrders;
+                    if (quantityEl) quantityEl.textContent = totalQuantity.toLocaleString();
+                    
+                    // Update product orders table
+                    this.updateProductOrdersTable(productCode, productOrders);
+                    
+                    // Update product chart
+                    this.updateProductChart(productCode, productOrders);
+                });
+            }
+
+            updateProductOrdersTable(productCode, orders) {
+                const tbody = document.getElementById(`orders-${productCode}`);
+                if (!tbody) return;
+                
+                if (orders.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 20px; color: #6b7280;">
+                                No orders for this product
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                tbody.innerHTML = orders.map(order => {
+                    const status = order.status || 'default';
+                    const statusInfo = this.statusMap[status];
+                    
+                    return `
+                        <tr>
+                            <td>${order.order_number}</td>
+                            <td>${order.order_quantity}</td>
+                            <td>${order.delivery_date}</td>
+                            <td>
+                                <span class="status-indicator status-${status}" 
+                                      data-order-id="${order.id}"
+                                      data-current-status="${status}"
+                                      onclick="ediDashboard.handleStatusClick(this)"
+                                      onmousedown="ediDashboard.handleStatusMouseDown(this)"
+                                      onmouseup="ediDashboard.handleStatusMouseUp(this)"
+                                      onmouseleave="ediDashboard.handleStatusMouseUp(this)">
+                                    ${statusInfo.label}
+                                </span>
+                            </td>
+                            <td>${order.status_updated_at ? new Date(order.status_updated_at).toLocaleDateString() : 'N/A'}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            updateProductChart(productCode, orders) {
+                const chartCanvas = document.getElementById(`chart-${productCode}`);
+                if (!chartCanvas) return;
+                
+                // Destroy existing chart if it exists
+                if (this.charts[productCode]) {
+                    this.charts[productCode].destroy();
+                }
+                
+                // Group orders by delivery date and status
+                const dateGroups = {};
+                
+                orders.forEach(order => {
+                    const date = order.delivery_date || 'Unknown';
+                    if (!dateGroups[date]) {
+                        dateGroups[date] = {
+                            default: 0,
+                            half: 0,
+                            'three-quarter': 0,
+                            finished: 0,
+                            forecast: 0
+                        };
+                    }
+                    
+                    const status = order.status || 'default';
+                    const quantity = parseInt(order.order_quantity) || 1;
+                    dateGroups[date][status] += quantity;
+                });
+
+                // Add forecast data
+                Object.keys(this.forecasts).forEach(key => {
+                    const [forecastProductCode, monthDate] = key.split('-');
+                    if (forecastProductCode === productCode) {
+                        const quantity = this.forecasts[key];
+                        
+                        if (quantity > 0) {
+                            const date = monthDate;
+                            
+                            if (!dateGroups[date]) {
+                                dateGroups[date] = {
+                                    default: 0,
+                                    half: 0,
+                                    'three-quarter': 0,
+                                    finished: 0,
+                                    forecast: 0
+                                };
+                            }
+                            
+                            dateGroups[date].forecast += quantity;
+                        }
+                    }
+                });
+
+                // Sort dates
+                const sortedDates = Object.keys(dateGroups).sort();
+                
+                // Create chart
+                const ctx = chartCanvas.getContext('2d');
+                this.charts[productCode] = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: sortedDates,
+                        datasets: [
+                            {
+                                label: 'Forecast',
+                                data: sortedDates.map(date => dateGroups[date].forecast),
+                                backgroundColor: '#9ca3af',
+                                borderColor: '#6b7280',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Finished',
+                                data: sortedDates.map(date => dateGroups[date].finished),
+                                backgroundColor: '#10b981',
+                                borderColor: '#059669',
+                                borderWidth: 1
+                            },
+                            {
+                                label: '3/4 Done',
+                                data: sortedDates.map(date => dateGroups[date]['three-quarter']),
+                                backgroundColor: '#f97316',
+                                borderColor: '#ea580c',
+                                borderWidth: 1
+                            },
+                            {
+                                label: '1/2 Done',
+                                data: sortedDates.map(date => dateGroups[date].half),
+                                backgroundColor: '#fbbf24',
+                                borderColor: '#f59e0b',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Default',
+                                data: sortedDates.map(date => dateGroups[date].default),
+                                backgroundColor: '#3b82f6',
+                                borderColor: '#2563eb',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                stacked: true,
+                                title: {
+                                    display: true,
+                                    text: 'Delivery Date'
+                                }
+                            },
+                            y: {
+                                stacked: true,
+                                title: {
+                                    display: true,
+                                    text: 'Quantity'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            title: {
+                                display: true,
+                                text: `${productCode} - Orders (by status) + Forecasts (gray)`
+                            }
+                        }
+                    }
+                });
+            }
+
+            switchToProduct(productCode) {
+                // Update active tab
+                document.querySelectorAll('.product-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.querySelector(`[onclick*="${productCode}"]`).classList.add('active');
+                
+                // Update active content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                document.getElementById(`tab-${productCode}`).classList.add('active');
+                
+                this.activeProductCode = productCode;
             }
 
             handleStatusMouseDown(element) {
@@ -612,10 +1111,13 @@
                     if (response.ok) {
                         const statusInfo = this.statusMap[newStatus];
                         
-                        // Update UI immediately
-                        element.className = `status-indicator status-${newStatus}`;
-                        element.dataset.currentStatus = newStatus;
-                        element.textContent = statusInfo.label;
+                        // Update UI immediately for all instances
+                        const allElements = document.querySelectorAll(`[data-order-id="${orderId}"]`);
+                        allElements.forEach(el => {
+                            el.className = `status-indicator status-${newStatus}`;
+                            el.dataset.currentStatus = newStatus;
+                            el.textContent = statusInfo.label;
+                        });
                         
                         // Update order in local data
                         const orderIndex = this.orders.findIndex(o => o.id == orderId);
@@ -624,8 +1126,8 @@
                             this.orders[orderIndex].status_updated_at = new Date().toISOString();
                         }
                         
-                        // Update charts and stats
-                        this.updateCharts();
+                        // Update tabs and stats
+                        this.updateProductTabs();
                         this.loadStats();
                         
                         this.showMessage(`Order status updated to ${statusInfo.label}`, 'success', 2000);
@@ -636,204 +1138,6 @@
                     this.showMessage('Failed to update order status: ' + error.message, 'error');
                     console.error('Error updating status:', error);
                 }
-            }
-
-            initializeCharts() {
-                // Orders & Forecast Timeline Chart
-                const ordersCtx = document.getElementById('ordersChart').getContext('2d');
-                this.charts.orders = new Chart(ordersCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: [],
-                        datasets: []
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                stacked: true,
-                                title: {
-                                    display: true,
-                                    text: 'Delivery Date'
-                                }
-                            },
-                            y: {
-                                stacked: true,
-                                title: {
-                                    display: true,
-                                    text: 'Quantity'
-                                }
-                            }
-                        },
-                        plugins: {
-                            legend: {
-                                position: 'top',
-                            },
-                            title: {
-                                display: true,
-                                text: 'Orders (by status) + Forecasts (gray)'
-                            }
-                        }
-                    }
-                });
-
-                // Status Distribution Chart
-                const statusCtx = document.getElementById('statusChart').getContext('2d');
-                this.charts.status = new Chart(statusCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: [],
-                        datasets: [{
-                            data: [],
-                            backgroundColor: []
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                            }
-                        }
-                    }
-                });
-
-                this.updateCharts();
-            }
-
-            updateCharts() {
-                this.updateOrdersChart();
-                this.updateStatusChart();
-            }
-
-            updateOrdersChart() {
-                if (!this.charts.orders) return;
-
-                // Group orders by delivery date and status
-                const dateGroups = {};
-                
-                // Add orders data
-                this.orders.forEach(order => {
-                    const date = order.delivery_date || 'Unknown';
-                    if (!dateGroups[date]) {
-                        dateGroups[date] = {
-                            default: 0,
-                            half: 0,
-                            'three-quarter': 0,
-                            finished: 0,
-                            forecast: 0
-                        };
-                    }
-                    
-                    const status = order.status || 'default';
-                    const quantity = parseInt(order.order_quantity) || 1;
-                    dateGroups[date][status] += quantity;
-                });
-
-                // Add forecast data (gray)
-                Object.keys(this.forecasts).forEach(key => {
-                    const [productCode, monthDate] = key.split('-');
-                    const quantity = this.forecasts[key];
-                    
-                    if (quantity > 0) {
-                        // Use first day of month as date
-                        const date = monthDate; // Already in YYYY-MM-DD format
-                        
-                        if (!dateGroups[date]) {
-                            dateGroups[date] = {
-                                default: 0,
-                                half: 0,
-                                'three-quarter': 0,
-                                finished: 0,
-                                forecast: 0
-                            };
-                        }
-                        
-                        dateGroups[date].forecast += quantity;
-                    }
-                });
-
-                // Sort dates
-                const sortedDates = Object.keys(dateGroups).sort();
-                
-                // Create datasets with priority stacking (most complete at bottom)
-                const datasets = [
-                    {
-                        label: 'Forecast',
-                        data: sortedDates.map(date => dateGroups[date].forecast),
-                        backgroundColor: '#9ca3af',
-                        borderColor: '#6b7280',
-                        borderWidth: 1
-                    },
-                    {
-                        label: 'Finished',
-                        data: sortedDates.map(date => dateGroups[date].finished),
-                        backgroundColor: '#10b981',
-                        borderColor: '#059669',
-                        borderWidth: 1
-                    },
-                    {
-                        label: '3/4 Done',
-                        data: sortedDates.map(date => dateGroups[date]['three-quarter']),
-                        backgroundColor: '#f97316',
-                        borderColor: '#ea580c',
-                        borderWidth: 1
-                    },
-                    {
-                        label: '1/2 Done',
-                        data: sortedDates.map(date => dateGroups[date].half),
-                        backgroundColor: '#fbbf24',
-                        borderColor: '#f59e0b',
-                        borderWidth: 1
-                    },
-                    {
-                        label: 'Default',
-                        data: sortedDates.map(date => dateGroups[date].default),
-                        backgroundColor: '#3b82f6',
-                        borderColor: '#2563eb',
-                        borderWidth: 1
-                    }
-                ];
-
-                this.charts.orders.data.labels = sortedDates;
-                this.charts.orders.data.datasets = datasets;
-                this.charts.orders.update();
-            }
-
-            updateStatusChart() {
-                if (!this.charts.status) return;
-
-                // Count orders by status
-                const statusCounts = {
-                    default: 0,
-                    half: 0,
-                    'three-quarter': 0,
-                    finished: 0
-                };
-
-                this.orders.forEach(order => {
-                    const status = order.status || 'default';
-                    statusCounts[status]++;
-                });
-
-                const labels = [];
-                const data = [];
-                const colors = [];
-
-                Object.keys(statusCounts).forEach(status => {
-                    if (statusCounts[status] > 0) {
-                        labels.push(this.statusMap[status].label);
-                        data.push(statusCounts[status]);
-                        colors.push(this.statusMap[status].color);
-                    }
-                });
-
-                this.charts.status.data.labels = labels;
-                this.charts.status.data.datasets[0].data = data;
-                this.charts.status.data.datasets[0].backgroundColor = colors;
-                this.charts.status.update();
             }
 
             setupFileUpload() {
@@ -934,18 +1238,16 @@
                 console.log('🔍 DEBUG INFO:');
                 console.log('📊 Orders:', this.orders.length);
                 console.log('📈 Forecasts:', Object.keys(this.forecasts).length);
-                console.log('📋 Status distribution:', 
-                    this.orders.reduce((acc, order) => {
-                        const status = order.status || 'default';
-                        acc[status] = (acc[status] || 0) + 1;
-                        return acc;
-                    }, {})
-                );
+                console.log('📋 Product priority:', this.productPriority);
+                console.log('🏷️ Product mappings:', this.productMappings);
+                console.log('📊 Charts:', Object.keys(this.charts).length);
                 
                 alert(`Debug Info:
 📊 Orders: ${this.orders.length}
 📈 Forecasts: ${Object.keys(this.forecasts).length}
-🎯 Charts: ${Object.keys(this.charts).length}
+🏷️ Products: ${this.productPriority.length}
+📊 Charts: ${Object.keys(this.charts).length}
+👤 Active product: ${this.activeProductCode}
 
 Check console for detailed logs.`);
             }
@@ -971,7 +1273,7 @@ Check console for detailed logs.`);
 
         function loadChartData() {
             ediDashboard.loadForecastData().then(() => {
-                ediDashboard.updateCharts();
+                ediDashboard.updateProductTabs();
                 ediDashboard.showMessage('Chart data updated successfully', 'success', 2000);
             });
         }
@@ -984,9 +1286,30 @@ Check console for detailed logs.`);
             ediDashboard.logout();
         }
 
+        // Check authentication and redirect if needed
+        async function checkAuth() {
+            try {
+                const response = await fetch('/auth/status');
+                const data = await response.json();
+                
+                if (!data.authenticated) {
+                    window.location.href = '/auth/login';
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/auth/login';
+                return false;
+            }
+        }
+
         // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            ediDashboard.initialize();
+        document.addEventListener('DOMContentLoaded', async function() {
+            const isAuthenticated = await checkAuth();
+            if (isAuthenticated) {
+                ediDashboard.initialize();
+            }
         });
     </script>
 </body>

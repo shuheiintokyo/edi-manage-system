@@ -1,4 +1,4 @@
-// routes/forecast.js - Updated for correct file path and EDI integration
+// routes/forecast.js - Fixed for correct file path and authentication
 const express = require('express');
 const path = require('path');
 const multer = require('multer');
@@ -25,9 +25,29 @@ const upload = multer({
   }
 });
 
-// Forecast dashboard page - Updated path
+// Forecast dashboard page - FIXED PATH
 router.get('/dashboard', (req, res) => {
-  res.sendFile(path.join(__dirname, '../views/forecast/dashboard.html'));
+  // Check if the correct file exists, fallback to old location if needed
+  const correctPath = path.join(__dirname, '../views/forecast/dashboard.html');
+  const fallbackPath = path.join(__dirname, '../views/forecast-dashboard.html');
+  
+  const fs = require('fs');
+  
+  if (fs.existsSync(correctPath)) {
+    console.log('✅ Serving forecast dashboard from correct location');
+    res.sendFile(correctPath);
+  } else if (fs.existsSync(fallbackPath)) {
+    console.log('⚠️ Serving forecast dashboard from fallback location');
+    res.sendFile(fallbackPath);
+  } else {
+    console.log('❌ Forecast dashboard file not found');
+    res.status(404).send(`
+      <h1>Forecast Dashboard Not Found</h1>
+      <p>Please create the file at: <code>views/forecast/dashboard.html</code></p>
+      <p>Expected location: ${correctPath}</p>
+      <p><a href="/edi/dashboard">← Back to EDI Dashboard</a></p>
+    `);
+  }
 });
 
 // Get all forecast data
@@ -171,98 +191,6 @@ router.delete('/api/forecasts/clear', async (req, res) => {
   } catch (error) {
     console.error('Error clearing forecasts:', error);
     res.status(500).json({ error: 'Failed to clear forecast data' });
-  }
-});
-
-// Import forecast data from Excel
-router.post('/api/import-forecast', upload.single('forecastFile'), async (req, res) => {
-  try {
-    const clientIP = getClientIP(req);
-    const userAgent = req.get('User-Agent') || 'unknown';
-    
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    // Check user permissions
-    if (req.session.username !== 'admin') {
-      return res.status(403).json({ error: 'Admin permissions required for Excel import' });
-    }
-
-    console.log(`📁 Processing Excel forecast file: ${req.file.originalname} (${req.file.size} bytes)`);
-
-    // For now, return a structured response for future Excel parsing implementation
-    // When you provide the Excel format, this can be completed with actual parsing logic
-    
-    const mockProcessedData = {
-      // Example structure that would be extracted from Excel
-      forecasts: [
-        // { drawing_number: 'PP4166-4681P003', month_date: '2025-01-01', quantity: 100 },
-        // { drawing_number: 'PP4166-4681P003', month_date: '2025-02-01', quantity: 150 },
-        // ... more data would be parsed from Excel
-      ]
-    };
-
-    const result = {
-      success: true,
-      message: 'Excel import ready - please provide Excel format details to complete implementation',
-      details: {
-        filename: req.file.originalname,
-        size: req.file.size,
-        expectedColumns: [
-          'Product Code (Drawing Number)',
-          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-        ],
-        sampleStructure: {
-          'PP4166-4681P003': { 'Jan': 100, 'Feb': 150, 'Mar': 200 },
-          'PP4166-4681P004': { 'Jan': 80, 'Feb': 120, 'Mar': 160 }
-        },
-        nextSteps: [
-          '1. Provide sample Excel file format',
-          '2. Specify column headers (Japanese/English)',
-          '3. Define data layout and structure',
-          '4. Complete parsing implementation'
-        ],
-        rowsProcessed: 0,
-        saved: 0,
-        placeholder: true
-      }
-    };
-
-    // TODO: When Excel format is provided, implement:
-    // 1. Parse Excel file using SheetJS or similar
-    // 2. Extract product codes and monthly data
-    // 3. Validate data format and ranges
-    // 4. Convert to forecast format with proper dates
-    // 5. Bulk insert to database
-    // 6. Return detailed results
-    
-    await logActivity(
-      req.sessionID,
-      'FORECAST_EXCEL_IMPORT_ATTEMPT',
-      `Excel import attempted: ${req.file.originalname} - awaiting format specification`,
-      userAgent,
-      clientIP
-    );
-    
-    res.json(result);
-    
-  } catch (error) {
-    console.error('Error importing forecast Excel:', error);
-    
-    await logActivity(
-      req.sessionID,
-      'FORECAST_EXCEL_IMPORT_ERROR',
-      `Excel import failed: ${error.message}`,
-      req.get('User-Agent') || 'unknown',
-      getClientIP(req)
-    );
-    
-    res.status(500).json({ 
-      error: 'Failed to import Excel file',
-      details: error.message
-    });
   }
 });
 
