@@ -1,4 +1,4 @@
-// routes/pages.js - Final version with database integration
+// routes/pages.js - Fixed version to match simplified EDI schema
 const express = require('express');
 const path = require('path');
 const { pool, logActivity } = require('../config/database');
@@ -36,9 +36,9 @@ router.get('/page3', logPageAccess, (req, res) => {
 // API endpoint for dashboard statistics
 router.get('/api/dashboard-stats', async (req, res) => {
   try {
-    // Get total EDI documents
-    const documentsResult = await pool.query('SELECT COUNT(*) as count FROM edi_documents');
-    const totalRecords = parseInt(documentsResult.rows[0].count);
+    // Get total EDI orders (changed from edi_documents to edi_orders)
+    const ordersResult = await pool.query('SELECT COUNT(*) as count FROM edi_orders');
+    const totalRecords = parseInt(ordersResult.rows[0].count);
     
     // Get active sessions (simulate for now)
     const sessionsResult = await pool.query(`
@@ -87,6 +87,8 @@ router.get('/api/recent-activities', async (req, res) => {
           WHEN al.action = 'LOGOUT' THEN 'User logged out'
           WHEN al.action = 'PAGE_ACCESS' THEN 'Accessed page: ' || COALESCE(al.details, 'Unknown')
           WHEN al.action = 'DATA_PROCESSED' THEN 'Processed data: ' || COALESCE(al.details, 'Unknown')
+          WHEN al.action = 'EDI_UPLOAD_SUCCESS' THEN 'Successfully uploaded EDI file'
+          WHEN al.action = 'EDI_UPLOAD_FAILED' THEN 'EDI upload failed'
           ELSE al.action
         END AS action_description
       FROM activity_logs al
@@ -219,6 +221,8 @@ router.get('/api/activity-log', async (req, res) => {
           WHEN al.action = 'LOGOUT' THEN 'User logged out'
           WHEN al.action = 'PAGE_ACCESS' THEN 'Accessed page: ' || COALESCE(al.details, 'Unknown')
           WHEN al.action = 'DATA_PROCESSED' THEN 'Processed data'
+          WHEN al.action = 'EDI_UPLOAD_SUCCESS' THEN 'Successfully uploaded EDI file'
+          WHEN al.action = 'EDI_UPLOAD_FAILED' THEN 'EDI upload failed'
           WHEN al.action LIKE 'SYSTEM_%' THEN 'System action: ' || REPLACE(al.action, 'SYSTEM_', '')
           ELSE al.action
         END AS action_description
@@ -266,7 +270,8 @@ router.get('/api/data', (req, res) => {
     pages: [
       { id: 1, name: 'Sample Page 1', url: '/pages/page1' },
       { id: 2, name: 'Sample Page 2', url: '/pages/page2' },
-      { id: 3, name: 'Sample Page 3', url: '/pages/page3' }
+      { id: 3, name: 'Sample Page 3', url: '/pages/page3' },
+      { id: 4, name: 'EDI Dashboard', url: '/edi/dashboard' }
     ]
   });
 });
