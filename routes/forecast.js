@@ -1,4 +1,4 @@
-// routes/forecast.js - Updated for date-based forecast management
+// routes/forecast.js - Updated for correct file path and EDI integration
 const express = require('express');
 const path = require('path');
 const multer = require('multer');
@@ -25,9 +25,9 @@ const upload = multer({
   }
 });
 
-// Forecast dashboard page
+// Forecast dashboard page - Updated path
 router.get('/dashboard', (req, res) => {
-  res.sendFile(path.join(__dirname, '../views/forecast-dashboard.html'));
+  res.sendFile(path.join(__dirname, '../views/forecast/dashboard.html'));
 });
 
 // Get all forecast data
@@ -50,6 +50,26 @@ router.get('/api/forecasts', async (req, res) => {
   } catch (error) {
     console.error('Error fetching forecasts:', error);
     res.status(500).json({ error: 'Failed to fetch forecast data' });
+  }
+});
+
+// Get EDI delivery dates for forecast planning
+router.get('/api/edi-delivery-dates', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT delivery_date, COUNT(*) as order_count
+      FROM edi_orders 
+      WHERE delivery_date IS NOT NULL AND delivery_date != ''
+      GROUP BY delivery_date
+      ORDER BY delivery_date
+    `);
+    
+    console.log(`📅 Retrieved ${result.rows.length} unique delivery dates`);
+    res.json(result.rows);
+    
+  } catch (error) {
+    console.error('Error fetching EDI delivery dates:', error);
+    res.status(500).json({ error: 'Failed to fetch EDI delivery dates' });
   }
 });
 
@@ -100,7 +120,7 @@ router.post('/api/forecasts/batch', async (req, res) => {
       await logActivity(
         req.sessionID,
         'FORECAST_BATCH_SAVE',
-        `Saved ${saved} forecast entries`,
+        `Saved ${saved} forecast entries based on EDI delivery dates`,
         userAgent,
         clientIP
       );
@@ -262,6 +282,46 @@ router.get('/api/user-info', (req, res) => {
   };
   
   res.json(userInfo);
+});
+
+// Get forecast statistics with EDI integration
+router.get('/api/forecast-stats', async (req, res) => {
+  try {
+    // Get forecast statistics
+    const forecastStats = await pool.query(`
+      SELECT 
+        COUNT(DISTINCT drawing_number) as product_count,
+        COUNT(*) as total_entries,
+        SUM(quantity) as total_quantity,
+        AVG(quantity) as avg_quantity
+      FROM forecasts
+      WHERE quantity > 0
+    `);
+    
+    // Get EDI delivery date range
+    const ediStats = await pool.query(`
+      SELECT 
+        COUNT(DISTINCT delivery_date) as unique_dates,
+        MIN(delivery_date) as earliest_date,
+        MAX(delivery_date) as latest_date,
+        COUNT(*) as total_orders
+      FROM edi_orders
+      WHERE delivery_date IS NOT NULL AND delivery_date != ''
+    `);
+    
+    res.json({
+      forecast: forecastStats.rows[0],
+      edi: ediStats.rows[0],
+      integration: {
+        forecast_based_on_edi: true,
+        last_updated: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching forecast stats:', error);
+    res.status(500).json({ error: 'Failed to fetch forecast statistics' });
+  }
 });
 
 // Debug endpoint for troubleshooting

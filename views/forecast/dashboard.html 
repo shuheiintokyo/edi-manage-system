@@ -6,7 +6,7 @@
     <title>EDI Management System - Forecast</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
-        /* Simplified Forecast Styles */
+        /* Enhanced Forecast Styles */
         .forecast-container {
             max-width: 1400px;
             margin: 0 auto;
@@ -26,6 +26,24 @@
         .forecast-header h1 {
             margin: 0 0 10px 0;
             font-size: 2.5rem;
+        }
+
+        .forecast-info {
+            background: #f0fff4;
+            border: 1px solid #10b981;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+
+        .forecast-info h3 {
+            margin: 0 0 10px 0;
+            color: #065f46;
+        }
+
+        .forecast-info p {
+            margin: 5px 0;
+            color: #047857;
         }
 
         .product-tabs {
@@ -437,10 +455,19 @@
     <div class="forecast-container">
         <div class="forecast-header">
             <h1>📈 Monthly Production Forecast</h1>
-            <p>Direct browser input for monthly forecast quantities by product code</p>
+            <p>Forecast planning based on EDI delivery dates - Starting from next delivery month</p>
         </div>
 
         <div id="messageContainer"></div>
+        
+        <!-- Forecast Information -->
+        <div class="forecast-info">
+            <h3>📊 Forecast Information</h3>
+            <p><strong>Forecast Period:</strong> <span id="forecast-period">Loading...</span></p>
+            <p><strong>Based on EDI Data:</strong> <span id="edi-date-range">Loading...</span></p>
+            <p><strong>Total Products:</strong> <span id="total-products">7</span></p>
+        </div>
+
         <div class="loading" id="loadingIndicator">
             <div class="spinner"></div>
             Loading forecast data...
@@ -476,7 +503,7 @@
 
     <script src="/js/main.js"></script>
     <script>
-        class SimpleForecastManager {
+        class EDIBasedForecastManager {
             constructor() {
                 this.currentUser = null;
                 this.userPermissions = { canEdit: false, canView: true };
@@ -484,6 +511,8 @@
                 this.changedCells = new Set();
                 this.months = [];
                 this.activeProductCode = null;
+                this.ediDeliveryDates = [];
+                this.forecastStartDate = null;
                 
                 // 7 Product codes with Japanese names
                 this.products = [
@@ -497,13 +526,132 @@
                 ];
             }
 
-            // Generate 12 months starting from current month
+            // Load EDI delivery dates to determine forecast start month
+            async loadEDIDeliveryDates() {
+                try {
+                    console.log('📅 Loading EDI delivery dates...');
+                    
+                    const response = await fetch('/edi/orders?limit=1000');
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    const orders = data.orders || [];
+                    
+                    // Extract and parse delivery dates
+                    const deliveryDates = orders
+                        .map(order => order.delivery_date)
+                        .filter(date => date && date.trim() !== '')
+                        .map(dateStr => {
+                            // Try to parse different date formats
+                            let date = null;
+                            
+                            // Try various common date formats
+                            const formats = [
+                                // YYYY-MM-DD
+                                /^(\d{4})-(\d{1,2})-(\d{1,2})$/,
+                                // YYYY/MM/DD
+                                /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/,
+                                // MM/DD/YYYY
+                                /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
+                                // DD/MM/YYYY
+                                /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+                            ];
+                            
+                            for (const format of formats) {
+                                const match = dateStr.match(format);
+                                if (match) {
+                                    let year, month, day;
+                                    if (format === formats[0] || format === formats[1]) {
+                                        // YYYY-MM-DD or YYYY/MM/DD
+                                        [, year, month, day] = match;
+                                    } else {
+                                        // MM/DD/YYYY (assume US format first)
+                                        [, month, day, year] = match;
+                                    }
+                                    
+                                    date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                                    if (!isNaN(date.getTime())) {
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            // Fallback: try direct parsing
+                            if (!date) {
+                                date = new Date(dateStr);
+                                if (isNaN(date.getTime())) {
+                                    console.warn(`⚠️ Could not parse date: ${dateStr}`);
+                                    return null;
+                                }
+                            }
+                            
+                            return date;
+                        })
+                        .filter(date => date !== null)
+                        .sort((a, b) => a.getTime() - b.getTime());
+                    
+                    this.ediDeliveryDates = deliveryDates;
+                    
+                    if (deliveryDates.length > 0) {
+                        // Start forecast from the month after the earliest delivery date
+                        const earliestDate = deliveryDates[0];
+                        const latestDate = deliveryDates[deliveryDates.length - 1];
+                        
+                        // Forecast starts from the month after the earliest delivery
+                        this.forecastStartDate = new Date(earliestDate.getFullYear(), earliestDate.getMonth() + 1, 1);
+                        
+                        console.log(`📊 EDI Analysis:
+                            - Total orders with dates: ${deliveryDates.length}
+                            - Earliest delivery: ${earliestDate.toISOString().split('T')[0]}
+                            - Latest delivery: ${latestDate.toISOString().split('T')[0]}
+                            - Forecast starts: ${this.forecastStartDate.toISOString().split('T')[0]}`);
+                        
+                        // Update UI with the information
+                        this.updateForecastInfo(earliestDate, latestDate);
+                    } else {
+                        // No EDI dates found, start from next month
+                        console.log('⚠️ No EDI delivery dates found, starting forecast from next month');
+                        const now = new Date();
+                        this.forecastStartDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                        
+                        document.getElementById('edi-date-range').textContent = 'No EDI data available';
+                    }
+                    
+                } catch (error) {
+                    console.error('Error loading EDI delivery dates:', error);
+                    // Fallback to next month
+                    const now = new Date();
+                    this.forecastStartDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                }
+            }
+
+            updateForecastInfo(earliestDate, latestDate) {
+                const formatDate = (date) => {
+                    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+                };
+                
+                const forecastEndDate = new Date(this.forecastStartDate.getFullYear(), this.forecastStartDate.getMonth() + 11, 1);
+                
+                document.getElementById('forecast-period').textContent = 
+                    `${formatDate(this.forecastStartDate)} - ${formatDate(forecastEndDate)}`;
+                
+                document.getElementById('edi-date-range').textContent = 
+                    `${earliestDate.toISOString().split('T')[0]} to ${latestDate.toISOString().split('T')[0]}`;
+            }
+
+            // Generate 12 months starting from the calculated forecast start date
             generateMonths() {
                 const months = [];
-                const now = new Date();
+                
+                if (!this.forecastStartDate) {
+                    console.error('❌ Forecast start date not set');
+                    return months;
+                }
                 
                 for (let i = 0; i < 12; i++) {
-                    const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
+                    const date = new Date(this.forecastStartDate.getFullYear(), this.forecastStartDate.getMonth() + i, 1);
                     const year = date.getFullYear();
                     const month = date.getMonth() + 1;
                     
@@ -526,7 +674,7 @@
                 }
                 
                 this.months = months;
-                console.log('📅 Generated months:', months);
+                console.log('📅 Generated forecast months:', months.map(m => `${m.display} ${m.year}`).join(', '));
                 return months;
             }
 
@@ -652,7 +800,7 @@
                         <div class="product-info">
                             <div class="product-details">
                                 <h3>${product.code}</h3>
-                                <p>${product.name} - Monthly Forecast Planning</p>
+                                <p>${product.name} - Monthly Forecast Planning (Based on EDI delivery schedule)</p>
                             </div>
                         </div>
                         <div class="product-stats" id="stats-${product.code}">
@@ -748,7 +896,7 @@
                 const values = Object.values(productData);
                 
                 const total = values.reduce((sum, val) => sum + (val || 0), 0);
-                const nextMonth = values[1] || 0;
+                const nextMonth = values[0] || 0; // First month in our forecast period
                 const average = total > 0 ? Math.round(total / 12) : 0;
                 
                 let changes = 0;
@@ -892,6 +1040,7 @@
             async refreshForecastData() {
                 try {
                     this.showMessage('Refreshing forecast data...', 'info');
+                    await this.loadEDIDeliveryDates();
                     await this.loadForecastData();
                     this.showMessage('Forecast data refreshed successfully', 'success');
                 } catch (error) {
@@ -953,13 +1102,21 @@
             async showDebugInfo() {
                 console.log('🔍 DEBUG INFO:');
                 console.log('📊 Forecast data:', this.forecastData);
-                console.log('📅 Months:', this.months);
+                console.log('📅 Generated months:', this.months);
+                console.log('📅 EDI delivery dates:', this.ediDeliveryDates);
+                console.log('📅 Forecast start date:', this.forecastStartDate);
                 console.log('🏷️ Products:', this.products);
                 console.log('⚠️ Changed cells:', Array.from(this.changedCells));
                 
+                const forecastInfo = this.forecastStartDate ? 
+                    `Starts: ${this.forecastStartDate.toISOString().split('T')[0]}` : 
+                    'Not calculated';
+                
                 alert(`Debug Info:
 📊 Forecast entries: ${Object.keys(this.forecastData).length}
-📅 Months: ${this.months.length}
+📅 Forecast months: ${this.months.length}
+📅 EDI delivery dates: ${this.ediDeliveryDates.length}
+📅 Forecast period: ${forecastInfo}
 🏷️ Products: ${this.products.length}
 ⚠️ Changed cells: ${this.changedCells.size}
 👤 Active product: ${this.activeProductCode}
@@ -969,9 +1126,10 @@ Check console for detailed logs.`);
 
             async initialize() {
                 try {
-                    console.log('🚀 Initializing Simple Forecast Manager...');
+                    console.log('🚀 Initializing EDI-Based Forecast Manager...');
                     
                     await this.loadUserInfo();
+                    await this.loadEDIDeliveryDates();
                     await this.loadForecastData();
                     
                     console.log('✅ Forecast Manager initialized successfully');
@@ -983,7 +1141,7 @@ Check console for detailed logs.`);
         }
 
         // Create global instance
-        const forecastManager = new SimpleForecastManager();
+        const forecastManager = new EDIBasedForecastManager();
 
         // Global functions
         function saveAllForecasts() {
