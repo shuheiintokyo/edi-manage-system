@@ -1,0 +1,32 @@
+{
+  "name": "edi-manage-system",
+  "version": "1.0.0",
+  "description": "EDI Management System with authentication and session management",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "setup-db": "node scripts/setup-database.js",
+    "init": "npm install && npm run setup-db"
+  },
+  "keywords": ["edi", "management", "express", "session", "auth"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "pg": "^8.11.3",
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.3.1",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "morgan": "^1.10.0",
+    "connect-pg-simple": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
