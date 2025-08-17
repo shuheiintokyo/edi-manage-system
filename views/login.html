@@ -35,29 +35,23 @@
     </div>
 
     <script>
-        // Handle URL parameters for messages
-        const urlParams = new URLSearchParams(window.location.search);
-        const error = urlParams.get('error');
-        const message = urlParams.get('message');
+        console.log('Login page JavaScript loaded');
         
-        if (error === 'invalid') {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-message';
-            errorDiv.textContent = 'Invalid username or password';
-            document.querySelector('.login-form').prepend(errorDiv);
-        }
-        
-        if (message === 'logged_out') {
-            const successDiv = document.createElement('div');
-            successDiv.className = 'success-message';
-            successDiv.textContent = 'You have been successfully logged out';
-            document.querySelector('.login-form').prepend(successDiv);
-        }
-        
-        // Auto-focus password field if username is pre-filled
-        if (document.getElementById('username').value) {
-            document.getElementById('password').focus();
-        }
+        // Debug form submission
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('.login-form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    console.log('=== FORM SUBMITTING ===');
+                    console.log('Action:', this.action);
+                    console.log('Method:', this.method);
+                    console.log('Username:', document.getElementById('username').value);
+                    console.log('Password length:', document.getElementById('password').value.length);
+                });
+            } else {
+                console.error('Form not found!');
+            }
+        });
     </script>
 </body>
 </html>
