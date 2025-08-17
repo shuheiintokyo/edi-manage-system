@@ -1,4 +1,4 @@
-// routes/auth.js - Final version with database integration
+// routes/auth.js - Updated for direct dashboard redirect
 const express = require('express');
 const path = require('path');
 const bcrypt = require('bcrypt');
@@ -70,7 +70,8 @@ router.post('/login', async (req, res) => {
         console.log('Failed to log activity:', logError.message);
       }
       
-      const redirectUrl = req.query.redirect || '/pages/page1';
+      // Redirect directly to EDI dashboard instead of pages
+      const redirectUrl = req.query.redirect || '/edi/dashboard';
       res.redirect(redirectUrl);
     } else {
       // Log failed login attempt

@@ -1,5 +1,5 @@
+// middleware/auth.js - Updated for dashboard redirect
 // Simple authentication without database (for initial deployment)
-// We'll add database logging later
 
 // Simple admin credentials - using environment variable
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '1234';
@@ -24,7 +24,8 @@ function requireAuth(req, res, next) {
 
 function redirectIfAuthenticated(req, res, next) {
   if (req.session.isAuthenticated) {
-    res.redirect('/pages/page1');
+    // Redirect to EDI dashboard instead of page1
+    res.redirect('/edi/dashboard');
   } else {
     next();
   }

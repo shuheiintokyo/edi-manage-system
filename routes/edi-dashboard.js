@@ -1,4 +1,4 @@
-// routes/edi-dashboard.js - Simplified version with Japanese names only
+// routes/edi-dashboard.js - Enhanced with status updates and chart data
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -205,12 +205,12 @@ router.post('/upload', upload.single('ediFile'), async (req, res) => {
           });
         } else {
           try {
-            // Insert new order
+            // Insert new order with default status
             await pool.query(`
               INSERT INTO edi_orders (
                 order_number, product_code, product_name, 
-                order_quantity, delivery_date, uploaded_by, uploaded_at
-              ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                order_quantity, delivery_date, status, uploaded_by, uploaded_at
+              ) VALUES ($1, $2, $3, $4, $5, 'default', $6, NOW())
             `, [
               record.order_number,
               record.product_code,
@@ -286,14 +286,14 @@ router.post('/upload', upload.single('ediFile'), async (req, res) => {
   }
 });
 
-// Get all EDI orders with pagination
+// Get all EDI orders with pagination and status
 router.get('/orders', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
     
-    // Get orders with user information
+    // Get orders with user information and status
     const orders = await pool.query(`
       SELECT 
         eo.*,
@@ -321,6 +321,55 @@ router.get('/orders', async (req, res) => {
   } catch (error) {
     console.error('Error fetching EDI orders:', error);
     res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+// Update order status
+router.post('/update-status', async (req, res) => {
+  try {
+    const { orderId, status } = req.body;
+    const clientIP = getClientIP(req);
+    const userAgent = req.get('User-Agent') || 'unknown';
+    
+    // Validate status
+    const validStatuses = ['default', 'half', 'three-quarter', 'finished'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+    
+    // Update order status
+    const result = await pool.query(`
+      UPDATE edi_orders 
+      SET status = $1, status_updated_at = NOW() 
+      WHERE id = $2 
+      RETURNING order_number, product_code, status
+    `, [status, orderId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    const updatedOrder = result.rows[0];
+    
+    // Log the status update
+    await logActivity(
+      req.sessionID,
+      'ORDER_STATUS_UPDATE',
+      `Updated order ${updatedOrder.order_number} (${updatedOrder.product_code}) to status: ${status}`,
+      userAgent,
+      clientIP
+    );
+    
+    res.json({
+      success: true,
+      orderId: orderId,
+      newStatus: status,
+      orderNumber: updatedOrder.order_number
+    });
+    
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    res.status(500).json({ error: 'Failed to update order status' });
   }
 });
 
@@ -352,11 +401,24 @@ router.get('/stats', async (req, res) => {
     `);
     const recentUploads = parseInt(uploadsResult.rows[0].count);
     
+    // Status distribution
+    const statusResult = await pool.query(`
+      SELECT status, COUNT(*) as count 
+      FROM edi_orders 
+      GROUP BY status
+    `);
+    
+    const statusDistribution = {};
+    statusResult.rows.forEach(row => {
+      statusDistribution[row.status] = parseInt(row.count);
+    });
+    
     res.json({
       totalOrders,
       recentOrders,
       uniqueProducts,
-      recentUploads
+      recentUploads,
+      statusDistribution
     });
     
   } catch (error) {
@@ -365,7 +427,49 @@ router.get('/stats', async (req, res) => {
       totalOrders: 0,
       recentOrders: 0,
       uniqueProducts: 0,
-      recentUploads: 0
+      recentUploads: 0,
+      statusDistribution: {}
+    });
+  }
+});
+
+// Get chart data for dashboard
+router.get('/chart-data', async (req, res) => {
+  try {
+    // Get orders grouped by delivery date and status
+    const ordersData = await pool.query(`
+      SELECT 
+        delivery_date,
+        status,
+        SUM(CAST(order_quantity AS INTEGER)) as total_quantity,
+        COUNT(*) as order_count
+      FROM edi_orders 
+      WHERE delivery_date IS NOT NULL AND delivery_date != ''
+      GROUP BY delivery_date, status
+      ORDER BY delivery_date
+    `);
+    
+    // Get forecast data for chart integration
+    const forecastData = await pool.query(`
+      SELECT 
+        month_date::text as delivery_date,
+        drawing_number as product_code,
+        quantity
+      FROM forecasts
+      WHERE quantity > 0
+      ORDER BY month_date
+    `);
+    
+    res.json({
+      orders: ordersData.rows,
+      forecasts: forecastData.rows
+    });
+    
+  } catch (error) {
+    console.error('Error fetching chart data:', error);
+    res.status(500).json({ 
+      orders: [],
+      forecasts: []
     });
   }
 });
@@ -441,7 +545,12 @@ router.get('/database-info', async (req, res) => {
       orderCount = parseInt(countResult.rows[0].count);
       
       // Get sample data to see current state
-      const sampleResult = await pool.query('SELECT id, order_number, product_code, product_name FROM edi_orders LIMIT 5');
+      const sampleResult = await pool.query(`
+        SELECT id, order_number, product_code, product_name, status, status_updated_at 
+        FROM edi_orders 
+        ORDER BY uploaded_at DESC 
+        LIMIT 5
+      `);
       sampleData = sampleResult.rows;
     } catch (err) {
       console.log('Cannot query edi_orders');
@@ -470,7 +579,14 @@ router.get('/test', (req, res) => {
   res.json({ 
     message: 'EDI routes are working!',
     productMappings: Object.keys(productMappings),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    features: [
+      'File upload and parsing',
+      'Order status tracking',
+      'Chart data integration',
+      'Japanese product names',
+      'Activity logging'
+    ]
   });
 });
 

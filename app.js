@@ -1,4 +1,4 @@
-// app.js - Fixed for Vercel serverless deployment with forecast feature
+// app.js - Simplified version with direct dashboard access
 const express = require('express');
 const path = require('path');
 const helmet = require('helmet');
@@ -8,7 +8,7 @@ const morgan = require('morgan');
 const app = express();
 
 // Import middleware and routes with error handling
-let sessionConfig, authRoutes, pageRoutes, ediRoutes, forecastRoutes;
+let sessionConfig, authRoutes, ediRoutes, forecastRoutes;
 let requireAuth = (req, res, next) => next(); // Fallback
 
 try {
@@ -16,7 +16,6 @@ try {
   sessionConfig = sessionModule.sessionConfig;
   
   authRoutes = require('./routes/auth');
-  pageRoutes = require('./routes/pages');
   ediRoutes = require('./routes/edi-dashboard');
   forecastRoutes = require('./routes/forecast');
   
@@ -82,10 +81,6 @@ if (authRoutes) {
   app.use('/auth', authRoutes);
 }
 
-if (pageRoutes && requireAuth) {
-  app.use('/pages', requireAuth, pageRoutes);
-}
-
 if (ediRoutes && requireAuth) {
   app.use('/edi', requireAuth, ediRoutes);
 }
@@ -94,11 +89,11 @@ if (forecastRoutes && requireAuth) {
   app.use('/forecast', requireAuth, forecastRoutes);
 }
 
-// Root route - redirect to login or dashboard
+// Root route - redirect directly to EDI dashboard
 app.get('/', (req, res) => {
   try {
     if (req.session?.isAuthenticated) {
-      res.redirect('/pages/page1');
+      res.redirect('/edi/dashboard');
     } else {
       res.redirect('/auth/login');
     }
@@ -106,6 +101,11 @@ app.get('/', (req, res) => {
     console.error('Root route error:', error);
     res.status(500).send('Internal Server Error');
   }
+});
+
+// Remove old page routes - redirect to dashboard
+app.get('/pages/*', requireAuth, (req, res) => {
+  res.redirect('/edi/dashboard');
 });
 
 // Catch-all for missing static files
