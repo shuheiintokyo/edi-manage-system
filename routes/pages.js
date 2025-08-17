@@ -36,25 +36,43 @@ router.get('/page3', logPageAccess, (req, res) => {
 // API endpoint for dashboard statistics
 router.get('/api/dashboard-stats', async (req, res) => {
   try {
-    // Get total EDI orders (changed from edi_documents to edi_orders)
-    const ordersResult = await pool.query('SELECT COUNT(*) as count FROM edi_orders');
-    const totalRecords = parseInt(ordersResult.rows[0].count);
+    // Get total EDI orders (with fallback if table doesn't exist)
+    let totalRecords = 0;
+    try {
+      const ordersResult = await pool.query('SELECT COUNT(*) as count FROM edi_orders');
+      totalRecords = parseInt(ordersResult.rows[0].count);
+    } catch (tableError) {
+      console.warn('edi_orders table not found, using fallback');
+      totalRecords = 0;
+    }
     
-    // Get active sessions (simulate for now)
-    const sessionsResult = await pool.query(`
-      SELECT COUNT(DISTINCT session_id) as count 
-      FROM activity_logs 
-      WHERE timestamp > NOW() - INTERVAL '1 hour'
-    `);
-    const activeSessions = parseInt(sessionsResult.rows[0].count) || 1;
+    // Get active sessions (with fallback)
+    let activeSessions = 1;
+    try {
+      const sessionsResult = await pool.query(`
+        SELECT COUNT(DISTINCT session_id) as count 
+        FROM activity_logs 
+        WHERE timestamp > NOW() - INTERVAL '1 hour'
+      `);
+      activeSessions = parseInt(sessionsResult.rows[0].count) || 1;
+    } catch (tableError) {
+      console.warn('activity_logs table not found, using fallback');
+      activeSessions = 1;
+    }
     
-    // Get recent activities count
-    const activitiesResult = await pool.query(`
-      SELECT COUNT(*) as count 
-      FROM activity_logs 
-      WHERE timestamp > NOW() - INTERVAL '24 hours'
-    `);
-    const recentActivitiesCount = parseInt(activitiesResult.rows[0].count);
+    // Get recent activities count (with fallback)
+    let recentActivitiesCount = 0;
+    try {
+      const activitiesResult = await pool.query(`
+        SELECT COUNT(*) as count 
+        FROM activity_logs 
+        WHERE timestamp > NOW() - INTERVAL '24 hours'
+      `);
+      recentActivitiesCount = parseInt(activitiesResult.rows[0].count);
+    } catch (tableError) {
+      console.warn('activity_logs table query failed, using fallback');
+      recentActivitiesCount = 0;
+    }
     
     res.json({
       total_records: totalRecords,
@@ -77,6 +95,7 @@ router.get('/api/dashboard-stats', async (req, res) => {
 // API endpoint for recent activities
 router.get('/api/recent-activities', async (req, res) => {
   try {
+    // Check if tables exist first
     const activities = await pool.query(`
       SELECT 
         al.*,
@@ -105,14 +124,20 @@ router.get('/api/recent-activities', async (req, res) => {
       {
         timestamp: new Date().toISOString(),
         action: 'PAGE_ACCESS',
-        action_description: 'Accessed page: /pages/page1',
-        username: req.session.username || 'demo'
+        action_description: 'Accessed page: /pages/page2',
+        username: req.session.username || 'admin'
       },
       {
         timestamp: new Date(Date.now() - 60000).toISOString(),
         action: 'LOGIN_SUCCESS',
         action_description: 'User logged in successfully',
-        username: req.session.username || 'demo'
+        username: req.session.username || 'admin'
+      },
+      {
+        timestamp: new Date(Date.now() - 120000).toISOString(),
+        action: 'EDI_UPLOAD_SUCCESS',
+        action_description: 'Successfully uploaded EDI file',
+        username: req.session.username || 'admin'
       }
     ]);
   }

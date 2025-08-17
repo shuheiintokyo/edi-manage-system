@@ -376,18 +376,25 @@ router.post('/fix-product-names', async (req, res) => {
     const orders = await pool.query('SELECT id, product_code, product_name FROM edi_orders');
     let updatedCount = 0;
     
+    console.log(`🔧 Checking ${orders.rows.length} orders for corrupted names...`);
+    
     for (const order of orders.rows) {
       const correctName = getProductNameFromCode(order.product_code);
       
+      console.log(`Checking order ${order.id}: code=${order.product_code}, current_name="${order.product_name}", correct_name="${correctName}"`);
+      
       // Update if the name is corrupted (contains question marks or diamonds) or is just the product code
-      if (order.product_name.includes('�') || order.product_name === order.product_code) {
+      if (order.product_name.includes('�') || order.product_name === order.product_code || order.product_name.includes('RO')) {
         await pool.query(
           'UPDATE edi_orders SET product_name = $1 WHERE id = $2',
           [correctName, order.id]
         );
+        console.log(`✅ Fixed order ${order.id}: "${order.product_name}" → "${correctName}"`);
         updatedCount++;
       }
     }
+    
+    console.log(`🎯 Fixed ${updatedCount} product names`);
     
     res.json({ 
       success: true, 
